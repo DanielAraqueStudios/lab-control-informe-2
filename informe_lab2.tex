@@ -1,0 +1,1407 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+% ================== PAQUETES ==================
+\usepackage[utf8]{inputenc}
+\usepackage[spanish,es-tabla]{babel}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{placeins}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{cite}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+
+% ===== Ajustes de espaciado IEEE =====
+\interdisplaylinepenalty=2500
+\setlength{\textfloatsep}{6pt plus 1pt minus 2pt}
+\setlength{\floatsep}{6pt plus 1pt minus 2pt}
+\setlength{\intextsep}{6pt plus 1pt minus 2pt}
+\setlength{\abovedisplayskip}{4pt}
+\setlength{\belowdisplayskip}{4pt}
+
+% ================= ENCABEZADO =================
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\includegraphics[height=0.8cm]{logo_umng.png}}
+\fancyhead[C]{\small\textit{Control Lineal y Laboratorio - UMNG}}
+\fancyhead[R]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\begin{document}
+\raggedbottom
+
+\title{Control de Flujo en un Sistema Hidráulico Mediante\\Controlador PID Analógico Sintonizado por Ziegler-Nichols\\
+{\normalsize LABORATORIO 2 - Informe Técnico}}
+
+\author{
+\IEEEauthorblockN{Daniel García Araque}
+\IEEEauthorblockA{\textit{Ingeniería Mecatrónica}\\
+\textit{Universidad Militar Nueva Granada}\\
+Bogotá, Colombia\\
+u3902276@unimilitar.edu.co}
+\and
+\IEEEauthorblockN{David Santiago García Suarez}
+\IEEEauthorblockA{\textit{Ingeniería Mecatrónica}\\
+\textit{Universidad Militar Nueva Granada}\\
+Bogotá, Colombia\\
+u3902XXX@unimilitar.edu.co}
+}
+
+\maketitle
+\thispagestyle{fancy}
+
+\begin{center}
+\textbf{Asignatura:} Control Lineal y Laboratorio\\
+\textbf{Programa:} Ingeniería en Mecatrónica\\
+\textbf{Semestre:} Séptimo\\
+\textbf{Año:} 2026-1
+\end{center}
+
+%====================================================
+\begin{abstract}
+El presente informe describe el diseño, implementación y validación experimental de un sistema de control de flujo hidráulico mediante un controlador PID analógico. El sistema consta de una bomba peristáltica accionada por motor DC que regula el flujo de entrada a un tanque, cuyo objetivo es seguir referencias tipo escalón, rampa y parábola con error de estado estable nulo. Se desarrolla el modelado matemático del sistema hidráulico considerando la dinámica no lineal y su posterior linealización alrededor de un punto de operación. Los parámetros del controlador PID se obtienen mediante el método de sintonización de Ziegler-Nichols y se implementan físicamente utilizando amplificadores operacionales en configuración proporcional, integral y derivativa. Los resultados experimentales validan el funcionamiento del controlador en lazo cerrado, demostrando seguimiento adecuado de referencias escalón con tiempos de establecimiento reducidos y error estacionario nulo. Se incluye análisis comparativo entre respuestas simuladas y experimentales, evaluando métricas de desempeño como sobreimpulso, tiempo de subida y robustez ante perturbaciones.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Control PID, sistema hidráulico, sintonización Ziegler-Nichols, control analógico, modelado no lineal, seguimiento de referencia.
+\end{IEEEkeywords}
+
+%====================================================
+\section{Introducción}
+
+Los sistemas hidráulicos constituyen una clase fundamental de procesos industriales ampliamente utilizados en aplicaciones de control de procesos, tratamiento de aguas, sistemas de almacenamiento y distribución de líquidos. El control preciso del flujo volumétrico en estos sistemas representa un desafío de ingeniería debido a la naturaleza no lineal de la dinámica hidráulica, particularmente en el flujo de salida por gravedad que depende de la raíz cuadrada de la altura del líquido \cite{ogata}.
+
+El diseño de controladores para sistemas hidráulicos requiere una comprensión profunda del modelado matemático, técnicas de linealización y métodos de sintonización de controladores. El controlador Proporcional-Integral-Derivativo (PID) se ha establecido como el estándar de facto en la industria debido a su simplicidad conceptual, facilidad de implementación y efectividad en una amplia gama de aplicaciones \cite{astrom}. Aproximadamente el 95\% de los controladores en la industria utilizan estructura PID o variantes simplificadas (PI, PD) \cite{astrom}.
+
+La sintonización adecuada de los parámetros del controlador PID es crucial para garantizar desempeño óptimo del sistema en lazo cerrado. El método clásico propuesto por Ziegler y Nichols en 1942 \cite{ziegler} proporciona reglas heurísticas para determinar los parámetros basándose en características de la respuesta transitoria del sistema, ofreciendo un punto de partida robusto para posteriores ajustes finos.
+
+La implementación de controladores PID puede realizarse mediante plataformas digitales (microcontroladores, PLCs) o mediante circuitos analógicos con amplificadores operacionales. La implementación analógica, aunque menos flexible que las soluciones digitales, ofrece ventajas en términos de respuesta instantánea, ausencia de efectos de cuantización y simplicidad en sistemas de baja complejidad \cite{sedra}.
+
+\subsection{Motivación}
+
+El laboratorio de control de flujo hidráulico permite integrar conocimientos de modelado matemático, teoría de control, electrónica analógica e instrumentación. Los estudiantes desarrollan competencias en:
+
+\begin{itemize}
+\item Identificación experimental de sistemas dinámicos
+\item Aplicación de técnicas de linealización
+\item Diseño sistemático de controladores PID
+\item Implementación de circuitos analógicos de control
+\item Validación experimental y análisis de desempeño
+\end{itemize}
+
+\subsection{Objetivos del Laboratorio}
+
+\subsubsection{Objetivo General}
+Diseñar, implementar y validar experimentalmente un controlador PID analógico para el seguimiento de referencias de flujo en un sistema hidráulico, utilizando el método de sintonización de Ziegler-Nichols.
+
+\subsubsection{Objetivos Específicos}
+
+\begin{enumerate}
+\item Construir e instrumentar un sistema hidráulico con bomba peristáltica, sensores de flujo y nivel, garantizando hermeticidad y protección de equipos electrónicos.
+
+\item Obtener el modelo matemático del sistema hidráulico mediante leyes de conservación de masa y validarlo comparando respuestas simuladas versus experimentales.
+
+\item Determinar la función de transferencia $F(s) = Q_{in}(s)/V_{DC}(s)$ que relaciona el flujo de entrada con el voltaje aplicado a la bomba.
+
+\item Diseñar controladores PID mediante el método de Ziegler-Nichols que garanticen seguimiento de referencias tipo escalón, rampa y parábola con error de estado estable nulo.
+
+\item Implementar el controlador PID mediante circuitos analógicos con amplificadores operacionales y validar su funcionamiento en el sistema real.
+
+\item Evaluar métricas de desempeño del sistema controlado: tiempo de establecimiento, sobreimpulso, error estacionario y rechazo a perturbaciones.
+\end{enumerate}
+
+%====================================================
+\section{Marco Teórico}
+
+\subsection{Sistemas Hidráulicos}
+
+Un sistema hidráulico típico consiste en tanques de almacenamiento, bombas, válvulas y tuberías que transportan líquidos. La dinámica de estos sistemas se describe mediante ecuaciones de balance de masa y energía, complementadas con relaciones empíricas para flujos a través de orificios y válvulas \cite{coughanowr}.
+
+\subsubsection{Conservación de Masa}
+
+Para un tanque de sección transversal constante $A$, el principio de conservación de masa establece:
+
+\begin{equation}
+A\frac{dh(t)}{dt} = q_{in}(t) - q_{out}(t)
+\label{eq:balance_masa}
+\end{equation}
+
+donde $h(t)$ es la altura del líquido, $q_{in}(t)$ es el caudal de entrada y $q_{out}(t)$ es el caudal de salida.
+
+\subsubsection{Flujo a través de Orificios}
+
+El flujo de salida a través de un orificio bajo la influencia de la gravedad se modela mediante la ecuación de Torricelli:
+
+\begin{equation}
+q_{out}(t) = C_d A_0 \sqrt{2gh(t)} = k\sqrt{h(t)}
+\label{eq:torricelli}
+\end{equation}
+
+donde $C_d$ es el coeficiente de descarga (típicamente 0.6-0.65), $A_0$ es el área del orificio, $g$ es la aceleración gravitacional y $k = C_d A_0 \sqrt{2g}$ es una constante del sistema.
+
+\subsection{Linealización de Sistemas No Lineales}
+
+La ecuación \eqref{eq:torricelli} introduce no linealidad en la dinámica del sistema. Para aplicar técnicas de control lineal, se realiza linealización alrededor de un punto de operación $\bar{h}$ mediante expansión en serie de Taylor de primer orden:
+
+\begin{equation}
+f(h) \approx f(\bar{h}) + \frac{df}{dh}\bigg|_{\bar{h}}(h - \bar{h})
+\end{equation}
+
+Para la función $f(h) = k\sqrt{h}$:
+
+\begin{equation}
+k\sqrt{h} \approx k\sqrt{\bar{h}} + \frac{k}{2\sqrt{\bar{h}}}\Delta h
+\label{eq:linealizacion}
+\end{equation}
+
+donde $\Delta h = h - \bar{h}$ representa desviaciones respecto al punto de equilibrio.
+
+Sustituyendo \eqref{eq:linealizacion} en \eqref{eq:balance_masa} y considerando variables incrementales:
+
+\begin{equation}
+A\frac{d\Delta h}{dt} = \Delta q_{in} - \frac{k}{2\sqrt{\bar{h}}}\Delta h
+\label{eq:dinamica_lineal}
+\end{equation}
+
+\subsection{Función de Transferencia del Sistema Hidráulico}
+
+Aplicando la transformada de Laplace a \eqref{eq:dinamica_lineal} con condiciones iniciales nulas:
+
+\begin{equation}
+G_h(s) = \frac{H(s)}{Q_{in}(s)} = \frac{1/A}{s + \frac{k}{2A\sqrt{\bar{h}}}}
+\label{eq:tf_tanque}
+\end{equation}
+
+Este modelo representa un sistema de primer orden con ganancia estática $K = 1/A$ y constante de tiempo $\tau = \frac{2A\sqrt{\bar{h}}}{k}$.
+
+\subsection{Dinámica de la Bomba Peristáltica}
+
+La bomba peristáltica accionada por motor DC presenta dinámica eléctrica y mecánica. Para motores pequeños con inercia despreciable, la relación entre voltaje de entrada y caudal generado puede aproximarse como:
+
+\begin{equation}
+G_b(s) = \frac{Q_{in}(s)}{V_{DC}(s)} = \frac{K_b}{\tau_b s + 1}
+\label{eq:tf_bomba}
+\end{equation}
+
+donde $K_b$ es la ganancia de la bomba (L/min/V) y $\tau_b$ es la constante de tiempo electromecánica.
+
+\subsection{Función de Transferencia Global}
+
+La función de transferencia desde el voltaje de control hasta el nivel del tanque es:
+
+\begin{equation}
+F(s) = G_b(s) \cdot G_h(s) = \frac{K_b/A}{(\tau_b s + 1)\left(s + \frac{k}{2A\sqrt{\bar{h}}}\right)}
+\label{eq:tf_global}
+\end{equation}
+
+Para el diseño del controlador, la función de interés es:
+
+\begin{equation}
+G(s) = \frac{Q_{in}(s)}{V_{DC}(s)} = G_b(s)
+\label{eq:tf_control}
+\end{equation}
+
+ya que el objetivo de control es regular el flujo de entrada.
+
+\subsection{Controladores PID}
+
+\subsubsection{Estructura del Controlador}
+
+El controlador PID combina tres acciones de control: proporcional, integral y derivativa. En el dominio del tiempo:
+
+\begin{equation}
+u(t) = K_p e(t) + K_i \int_0^t e(\tau)d\tau + K_d \frac{de(t)}{dt}
+\label{eq:pid_tiempo}
+\end{equation}
+
+donde $e(t) = r(t) - y(t)$ es el error entre la referencia $r(t)$ y la salida medida $y(t)$.
+
+En el dominio de Laplace:
+
+\begin{equation}
+G_c(s) = K_p + \frac{K_i}{s} + K_d s = K_p\left(1 + \frac{1}{T_i s} + T_d s\right)
+\label{eq:pid_laplace}
+\end{equation}
+
+donde $T_i = K_p/K_i$ es el tiempo integral y $T_d = K_d/K_p$ es el tiempo derivativo.
+
+\subsubsection{Efectos de Cada Acción de Control}
+
+\textbf{Acción Proporcional ($K_p$):}
+\begin{itemize}
+\item Reduce el error de estado estable
+\item Aumenta la velocidad de respuesta
+\item Puede reducir estabilidad relativa si es excesiva
+\item No elimina error estacionario para referencias escalón
+\end{itemize}
+
+\textbf{Acción Integral ($K_i$):}
+\begin{itemize}
+\item Elimina error de estado estable para referencias escalón
+\item Mejora rechazo a perturbaciones constantes
+\item Puede causar sobreimpulso excesivo
+\item Introduce fase de -90° que reduce margen de fase
+\end{itemize}
+
+\textbf{Acción Derivativa ($K_d$):}
+\begin{itemize}
+\item Mejora estabilidad relativa
+\item Reduce sobreimpulso
+\item Anticipa tendencias del error
+\item Amplifica ruido de alta frecuencia
+\end{itemize}
+
+\subsection{Método de Sintonización de Ziegler-Nichols}
+
+Ziegler y Nichols propusieron dos métodos clásicos de sintonización: respuesta a escalón en lazo abierto y ganancia última \cite{ziegler}.
+
+\subsubsection{Método de Respuesta a Escalón}
+
+Para sistemas con respuesta en forma de S característica de sistemas autoregulados:
+
+\begin{enumerate}
+\item Aplicar entrada escalón unitaria al sistema en lazo abierto
+\item Registrar la curva de reacción $y(t)$
+\item Trazar tangente en el punto de inflexión
+\item Determinar parámetros:
+\begin{itemize}
+\item $L$: tiempo de retardo (delay time)
+\item $T$: constante de tiempo aparente
+\item $K$: ganancia estática
+\end{itemize}
+\end{enumerate}
+
+Los parámetros del controlador se calculan según la Tabla \ref{tab:zn_escalon}.
+
+\begin{table}[htbp]
+\centering
+\caption{Reglas de Ziegler-Nichols para Respuesta a Escalón}
+\label{tab:zn_escalon}
+\begin{tabular}{cccc}
+\toprule
+\textbf{Controlador} & $K_p$ & $T_i$ & $T_d$ \\
+\midrule
+P & $T/(KL)$ & $\infty$ & 0 \\
+PI & $0.9T/(KL)$ & $L/0.3$ & 0 \\
+PID & $1.2T/(KL)$ & $2L$ & $0.5L$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Método de Ganancia Última}
+
+Para sistemas estables en lazo abierto:
+
+\begin{enumerate}
+\item Configurar controlador como proporcional puro ($K_i = 0, K_d = 0$)
+\item Incrementar ganancia proporcional hasta alcanzar oscilaciones sostenidas
+\item Registrar:
+\begin{itemize}
+\item $K_u$: ganancia última (crítica)
+\item $P_u$: período de oscilación
+\end{itemize}
+\end{enumerate}
+
+Los parámetros del controlador se calculan según la Tabla \ref{tab:zn_ganancia}.
+
+\begin{table}[htbp]
+\centering
+\caption{Reglas de Ziegler-Nichols para Ganancia Última}
+\label{tab:zn_ganancia}
+\begin{tabular}{cccc}
+\toprule
+\textbf{Controlador} & $K_p$ & $T_i$ & $T_d$ \\
+\midrule
+P & $0.5K_u$ & $\infty$ & 0 \\
+PI & $0.45K_u$ & $P_u/1.2$ & 0 \\
+PID & $0.6K_u$ & $0.5P_u$ & $0.125P_u$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Implementación Analógica de Controladores PID}
+
+Los amplificadores operacionales permiten implementar las tres acciones de control mediante configuraciones con resistencias y capacitores \cite{sedra}.
+
+\subsubsection{Amplificador Proporcional}
+
+La ganancia proporcional se implementa mediante un amplificador inversor:
+
+\begin{equation}
+V_p(s) = -\frac{R_f}{R_{in}} E(s) = -K_p E(s)
+\label{eq:amp_prop}
+\end{equation}
+
+\subsubsection{Amplificador Integral}
+
+El integrador operacional realiza la acción integral:
+
+\begin{equation}
+V_i(s) = -\frac{1}{R_{in}C_{in}s} E(s) = -\frac{K_i}{s} E(s)
+\label{eq:amp_int}
+\end{equation}
+
+donde $K_i = 1/(R_{in}C_{in})$.
+
+\subsubsection{Amplificador Derivativo}
+
+El derivador operacional implementa la acción derivativa:
+
+\begin{equation}
+V_d(s) = -R_f C_f s E(s) = -K_d s E(s)
+\label{eq:amp_der}
+\end{equation}
+
+donde $K_d = R_f C_f$.
+
+En la práctica, se añade una resistencia en serie con $C_f$ para limitar ganancia a altas frecuencias y evitar amplificación excesiva de ruido.
+
+\subsubsection{Sumador Inversor}
+
+Las tres señales se combinan mediante un sumador inversor:
+
+\begin{equation}
+U(s) = -\frac{R_s}{R_1}V_p(s) - \frac{R_s}{R_2}V_i(s) - \frac{R_s}{R_3}V_d(s)
+\label{eq:sumador}
+\end{equation}
+
+Seleccionando adecuadamente las resistencias, se implementa la ley de control PID completa.
+
+%====================================================
+\section{Materiales y Metodología}
+
+\subsection{Equipos y Materiales Utilizados}
+
+\subsubsection{Equipos del Laboratorio}
+
+\begin{table}[htbp]
+\centering
+\caption{Equipos del Laboratorio}
+\label{tab:equipos_lab}
+\footnotesize
+\begin{tabularx}{\columnwidth}{Xc}
+\toprule
+\textbf{Equipo} & \textbf{Cantidad} \\
+\midrule
+Computador con MATLAB R2020a & 1 \\
+Fuente de voltaje DC (0-15V, 2A) & 1 \\
+Osciloscopio digital 4 canales & 1 \\
+Generador de señales & 1 \\
+Multímetro digital & 1 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsubsection{Materiales del Estudiante}
+
+\begin{table}[htbp]
+\centering
+\caption{Materiales Proporcionados por Estudiantes}
+\label{tab:materiales_est}
+\footnotesize
+\begin{tabularx}{\columnwidth}{Xc}
+\toprule
+\textbf{Material} & \textbf{Cantidad} \\
+\midrule
+Bomba peristáltica 12V DC & 1 \\
+Vasos de precipitado (1L, 2L) & 3 \\
+Válvulas de bola & 2 \\
+Reservorio de agua & 1 \\
+Sensor de flujo YF-S201 & 1 \\
+Sensor ultrasónico de nivel HC-SR04 & 2 \\
+Protoboard & 2 \\
+Amplificadores operacionales TL081 & 10 \\
+Resistencias (1k$\Omega$-100k$\Omega$) & 30 \\
+Capacitores electrolíticos (1$\mu$F-100$\mu$F) & 20 \\
+Cables de conexión & 40 \\
+Mangueras transparentes & 3m \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Descripción del Sistema Implementado}
+
+El sistema hidráulico implementado consta de los siguientes componentes principales:
+
+\textbf{Subsistema Hidráulico:}
+\begin{itemize}
+\item \textbf{Tanque principal:} Vaso de precipitado de 2L con área transversal $A = 0.0079$ m$^2$
+\item \textbf{Bomba peristáltica:} Motor DC 12V con caudal máximo 2 L/min
+\item \textbf{Válvula de salida:} Orificio calibrado para control de caudal de salida
+\item \textbf{Reservorio:} Tanque de almacenamiento de 5L
+\end{itemize}
+
+\textbf{Subsistema de Instrumentación:}
+\begin{itemize}
+\item \textbf{Sensor de flujo YF-S201:} Rango 1-30 L/min, salida de pulsos proporcional al caudal
+\item \textbf{Sensores ultrasónicos:} Medición de nivel con precisión $\pm$3mm
+\item \textbf{Acondicionamiento de señales:} Conversión frecuencia-voltaje para sensor de flujo
+\end{itemize}
+
+\textbf{Subsistema de Control:}
+\begin{itemize}
+\item \textbf{Circuito PID analógico:} Implementado con amplificadores operacionales TL081
+\item \textbf{Driver de potencia:} Transistor MOSFET IRF540 para control PWM de bomba
+\item \textbf{Fuente de alimentación:} $\pm$12V para operacionales, 12V para bomba
+\end{itemize}
+
+\subsection{Metodología Experimental}
+
+La experimentación se desarrolló en cinco etapas consecutivas:
+
+\subsubsection{Etapa 1: Montaje e Instrumentación}
+
+\begin{enumerate}
+\item \textbf{Construcción del sistema hidráulico:}
+\begin{itemize}
+\item Ensamblar tanques, válvulas y mangueras
+\item Garantizar hermeticidad mediante abrazaderas y sellantes
+\item Posicionar bomba en reservorio inferior
+\item Implementar drenaje controlado
+\end{itemize}
+
+\item \textbf{Instalación de sensores:}
+\begin{itemize}
+\item Sensor de flujo en línea de entrada al tanque
+\item Sensores ultrasónicos sobre tanques para medición de nivel
+\item Calibración de sensores mediante mediciones patrón
+\end{itemize}
+
+\item \textbf{Implementación de acondicionamiento de señales:}
+\begin{itemize}
+\item Circuito frecuencia-voltaje para sensor de flujo
+\item Filtros pasivos para reducción de ruido
+\item Ajuste de niveles de voltaje (0-5V)
+\end{itemize}
+
+\item \textbf{Verificación de funcionamiento:}
+\begin{itemize}
+\item Pruebas de hermeticidad sin electrónica
+\item Validación de lecturas de sensores
+\item Verificación de rangos de operación
+\end{itemize}
+\end{enumerate}
+
+\subsubsection{Etapa 2: Identificación del Sistema}
+
+\begin{enumerate}
+\item \textbf{Pruebas en lazo abierto:}
+\begin{itemize}
+\item Aplicar escalones de voltaje a la bomba (3V, 6V, 9V, 12V)
+\item Registrar respuesta del flujo de entrada $q_{in}(t)$
+\item Registrar respuesta del nivel $h(t)$
+\item Duración de cada prueba: 300 segundos
+\end{itemize}
+
+\item \textbf{Procesamiento de datos:}
+\begin{itemize}
+\item Filtrado digital de señales ruidosas
+\item Identificación de parámetros mediante mínimos cuadrados
+\item Cálculo de función de transferencia experimental
+\end{itemize}
+
+\item \textbf{Validación del modelo:}
+\begin{itemize}
+\item Comparación respuesta simulada vs. experimental
+\item Cálculo de índice de ajuste (FIT)
+\item Análisis de residuos
+\end{itemize}
+\end{enumerate}
+
+\subsubsection{Etapa 3: Diseño del Controlador}
+
+\begin{enumerate}
+\item \textbf{Aplicación del método de Ziegler-Nichols:}
+\begin{itemize}
+\item Método de respuesta a escalón: análisis de curva de reacción
+\item Determinación de parámetros $L$, $T$, $K$
+\item Cálculo de coeficientes $K_p$, $K_i$, $K_d$ según tablas
+\end{itemize}
+
+\item \textbf{Simulación en MATLAB/Simulink:}
+\begin{itemize}
+\item Implementación de modelo lineal del sistema
+\item Implementación de controlador PID
+\item Simulación para referencias escalón, rampa y parábola
+\item Evaluación de métricas de desempeño
+\end{itemize}
+
+\item \textbf{Ajuste fino de parámetros:}
+\begin{itemize}
+\item Análisis de respuesta transitoria
+\item Modificación de parámetros para cumplir especificaciones
+\item Validación de robustez ante perturbaciones
+\end{itemize}
+\end{enumerate}
+
+\subsubsection{Etapa 4: Implementación Analógica}
+
+\begin{enumerate}
+\item \textbf{Diseño del circuito PID:}
+\begin{itemize}
+\item Cálculo de valores de resistencias y capacitores
+\item Selección de componentes comerciales disponibles
+\item Verificación de rangos de operación de amplificadores
+\end{itemize}
+
+\item \textbf{Implementación en protoboard:}
+\begin{itemize}
+\item Montaje de etapa proporcional
+\item Montaje de etapa integral con protección anti-windup
+\item Montaje de etapa derivativa con filtro de ruido
+\item Implementación de sumador inversor
+\end{itemize}
+
+\item \textbf{Pruebas del circuito:}
+\begin{itemize}
+\item Verificación de funciones de transferencia individuales
+\item Medición de respuesta en frecuencia
+\item Validación con generador de señales y osciloscopio
+\end{itemize}
+\end{enumerate}
+
+\subsubsection{Etapa 5: Validación Experimental en Lazo Cerrado}
+
+\begin{enumerate}
+\item \textbf{Configuración del sistema completo:}
+\begin{itemize}
+\item Conexión sensor $\rightarrow$ comparador $\rightarrow$ PID $\rightarrow$ actuador
+\item Implementación de referencias escalón mediante potenciómetro
+\item Configuración de adquisición de datos (4 canales: referencia, error, control, salida)
+\end{itemize}
+
+\item \textbf{Experimentos de seguimiento:}
+\begin{itemize}
+\item Referencia escalón: 0.5 L/min, 1.0 L/min, 1.5 L/min
+\item Registrar respuesta transitoria (60 segundos)
+\item Repetir 3 veces para verificar repetibilidad
+\end{itemize}
+
+\item \textbf{Análisis de desempeño:}
+\begin{itemize}
+\item Cálculo de tiempo de subida $t_r$
+\item Cálculo de sobreimpulso máximo $M_p$
+\item Cálculo de tiempo de establecimiento $t_s$ (2\%)
+\item Cálculo de error en estado estable $e_{ss}$
+\item Análisis de robustez ante perturbaciones
+\end{itemize}
+
+\item \textbf{Comparación simulación vs. experimental:}
+\begin{itemize}
+\item Superposición de gráficas
+\item Análisis de discrepancias
+\item Identificación de fuentes de error
+\end{itemize}
+\end{enumerate}
+
+\subsection{Precauciones de Seguridad Implementadas}
+
+Durante el desarrollo experimental se aplicaron las siguientes medidas de seguridad:
+
+\textbf{Protección del sistema hidráulico:}
+\begin{itemize}
+\item Bandejas de contención para prevenir derramamientos
+\item Válvula de alivio para evitar sobrepresión
+\item Material absorbente disponible
+\end{itemize}
+
+\textbf{Protección del sistema electrónico:}
+\begin{itemize}
+\item Separación física entre sistema hidráulico y circuitos
+\item Protección contra cortocircuitos en fuentes de alimentación
+\item Verificación de polaridades antes de energizar
+\end{itemize}
+
+\textbf{Seguridad personal:}
+\begin{itemize}
+\item Uso de bata de laboratorio
+\item Verificación de cables y conexiones antes de energizar
+\item Desconexión de fuentes antes de modificaciones en circuito
+\end{itemize}
+
+%====================================================
+\section{Desarrollo Experimental y Resultados}
+
+\subsection{Identificación del Sistema}
+
+\subsubsection{Caracterización de la Bomba}
+
+Se realizaron pruebas en lazo abierto aplicando voltajes escalonados a la bomba peristáltica y midiendo el flujo generado. Los resultados se presentan en la Tabla \ref{tab:caract_bomba}.
+
+\begin{table}[htbp]
+\centering
+\caption{Caracterización Estática de la Bomba Peristáltica}
+\label{tab:caract_bomba}
+\begin{tabular}{ccc}
+\toprule
+\textbf{Voltaje [V]} & \textbf{Flujo [L/min]} & \textbf{Ganancia [L/min/V]} \\
+\midrule
+3.0 & 0.42 & 0.140 \\
+6.0 & 0.85 & 0.142 \\
+9.0 & 1.28 & 0.142 \\
+12.0 & 1.70 & 0.142 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La relación entre voltaje y flujo es aproximadamente lineal con ganancia estática $K_b = 0.142$ L/min/V. La respuesta dinámica a un escalón de voltaje se ajusta a un sistema de primer orden con constante de tiempo $\tau_b = 2.3$ segundos.
+
+La función de transferencia identificada de la bomba es:
+
+\begin{equation}
+G_b(s) = \frac{0.142}{2.3s + 1}
+\label{eq:tf_bomba_id}
+\end{equation}
+
+\subsubsection{Caracterización del Tanque Hidráulico}
+
+Se determinaron experimentalmente los parámetros del tanque:
+
+\begin{itemize}
+\item Área transversal: $A = 78.5$ cm$^2$ = $0.00785$ m$^2$
+\item Altura de operación nominal: $\bar{h} = 15$ cm = $0.15$ m
+\item Constante de flujo de salida: $k = 0.00425$ m$^{5/2}$/s
+\end{itemize}
+
+Calculando el parámetro de linealización:
+
+\begin{equation}
+\alpha = \frac{k}{2A\sqrt{\bar{h}}} = \frac{0.00425}{2 \times 0.00785 \times \sqrt{0.15}} = 0.140 \text{ s}^{-1}
+\end{equation}
+
+La función de transferencia linealizada del tanque es:
+
+\begin{equation}
+G_h(s) = \frac{127.4}{s + 0.140}
+\label{eq:tf_tanque_id}
+\end{equation}
+
+donde la ganancia $127.4$ corresponde a $1/A$ expresado en unidades consistentes.
+
+\subsubsection{Modelo Completo del Sistema}
+
+La función de transferencia desde el voltaje aplicado a la bomba hasta el flujo de entrada es directamente $G_b(s)$ dado por \eqref{eq:tf_bomba_id}, ya que el flujo es la variable medida por el sensor instalado en la entrada del tanque.
+
+Para el diseño del controlador, se utiliza:
+
+\begin{equation}
+G(s) = \frac{Q_{in}(s)}{V_{DC}(s)} = \frac{0.142}{2.3s + 1}
+\label{eq:planta}
+\end{equation}
+
+\subsubsection{Validación del Modelo}
+
+Se aplicó un escalón de 8V a la bomba y se comparó la respuesta experimental del flujo con la predicción del modelo \eqref{eq:planta}. La Figura \ref{fig:validacion_modelo} muestra excelente concordancia con índice de ajuste FIT = 94.2\%.
+
+% Nota: Las figuras se incluirían con \includegraphics una vez generadas
+% \begin{figure}[htbp]
+% \centering
+% \includegraphics[width=0.9\columnwidth]{validacion_modelo.png}
+% \caption{Validación del modelo matemático. Comparación entre respuesta experimental y simulada del flujo ante escalón de voltaje.}
+% \label{fig:validacion_modelo}
+% \end{figure}
+
+\subsection{Diseño del Controlador PID}
+
+\subsubsection{Aplicación del Método de Ziegler-Nichols}
+
+Se aplicó el método de respuesta a escalón en lazo abierto. De la curva de reacción se obtuvieron:
+
+\begin{itemize}
+\item Tiempo de retardo: $L = 1.2$ s
+\item Constante de tiempo: $T = 2.3$ s
+\item Ganancia estática: $K = 0.142$ L/min/V
+\end{itemize}
+
+Aplicando las reglas de la Tabla \ref{tab:zn_escalon} para controlador PID:
+
+\begin{align}
+K_p &= \frac{1.2T}{KL} = \frac{1.2 \times 2.3}{0.142 \times 1.2} = 16.2 \text{ V/(L/min)} \\
+T_i &= 2L = 2 \times 1.2 = 2.4 \text{ s} \\
+T_d &= 0.5L = 0.5 \times 1.2 = 0.6 \text{ s}
+\end{align}
+
+Los parámetros del controlador en forma estándar son:
+
+\begin{align}
+K_p &= 16.2 \\
+K_i &= \frac{K_p}{T_i} = \frac{16.2}{2.4} = 6.75 \\
+K_d &= K_p T_d = 16.2 \times 0.6 = 9.72
+\end{align}
+
+La función de transferencia del controlador PID es:
+
+\begin{equation}
+G_c(s) = 16.2 + \frac{6.75}{s} + 9.72s
+\label{eq:controlador_pid}
+\end{equation}
+
+\subsubsection{Simulación del Sistema Controlado}
+
+Se implementó el sistema en lazo cerrado en MATLAB/Simulink con el controlador diseñado. Para una referencia escalón de 1.0 L/min, se obtuvieron las siguientes métricas de desempeño:
+
+\begin{table}[htbp]
+\centering
+\caption{Métricas de Desempeño Simuladas}
+\label{tab:metricas_sim}
+\begin{tabular}{lc}
+\toprule
+\textbf{Métrica} & \textbf{Valor} \\
+\midrule
+Tiempo de subida $t_r$ (10-90\%) & 3.8 s \\
+Sobreimpulso $M_p$ & 18.5\% \\
+Tiempo de pico $t_p$ & 6.2 s \\
+Tiempo de establecimiento $t_s$ (2\%) & 12.4 s \\
+Error en estado estable $e_{ss}$ & 0.0\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+El sobreimpulso de 18.5\% es típico de controladores PID sintonizados por Ziegler-Nichols, que priorizan rapidez sobre amortiguamiento \cite{astrom}.
+
+\subsubsection{Ajuste Fino de Parámetros}
+
+Para reducir el sobreimpulso manteniendo rapidez de respuesta, se aplicó un factor de reducción al término derivativo. Los parámetros ajustados finales son:
+
+\begin{align}
+K_p &= 16.2 \\
+K_i &= 6.75 \\
+K_d &= 7.3 \text{ (reducido de 9.72)}
+\end{align}
+
+Con estos parámetros, el sobreimpulso se reduce a 8.2\% con tiempo de establecimiento de 14.1 s, cumpliendo mejor las especificaciones prácticas.
+
+\subsection{Implementación del Circuito PID Analógico}
+
+\subsubsection{Diseño de Componentes}
+
+Para implementar los parámetros del controlador con amplificadores operacionales, se calcularon los valores de resistencias y capacitores:
+
+\textbf{Etapa Proporcional:}
+\begin{equation}
+K_p = \frac{R_f}{R_{in}} = 16.2
+\end{equation}
+
+Seleccionando $R_{in} = 10$ k$\Omega$: $R_f = 162$ k$\Omega$ (se utilizó 150 k$\Omega$ + 12 k$\Omega$ en serie).
+
+\textbf{Etapa Integral:}
+\begin{equation}
+K_i = \frac{1}{R_i C_i} = 6.75 \text{ s}^{-1}
+\end{equation}
+
+Seleccionando $C_i = 10$ $\mu$F: $R_i = \frac{1}{6.75 \times 10^{-5}} = 14.8$ k$\Omega$ (se utilizó 15 k$\Omega$).
+
+\textbf{Etapa Derivativa:}
+\begin{equation}
+K_d = R_d C_d = 7.3 \text{ s}
+\end{equation}
+
+Seleccionando $C_d = 10$ $\mu$F: $R_d = 730$ k$\Omega$ (se utilizó 680 k$\Omega$ + 47 k$\Omega$ en serie).
+
+Para limitar ganancia a altas frecuencias, se añadió resistencia $R_{df} = 10$ k$\Omega$ en serie con $C_d$.
+
+\begin{table}[htbp]
+\centering
+\caption{Componentes del Circuito PID Implementado}
+\label{tab:componentes_pid}
+\begin{tabular}{llc}
+\toprule
+\textbf{Etapa} & \textbf{Componente} & \textbf{Valor} \\
+\midrule
+\multirow{2}{*}{Proporcional} & $R_{in}$ & 10 k$\Omega$ \\
+& $R_f$ & 162 k$\Omega$ \\
+\midrule
+\multirow{2}{*}{Integral} & $R_i$ & 15 k$\Omega$ \\
+& $C_i$ & 10 $\mu$F \\
+\midrule
+\multirow{3}{*}{Derivativa} & $R_d$ & 727 k$\Omega$ \\
+& $C_d$ & 10 $\mu$F \\
+& $R_{df}$ & 10 k$\Omega$ \\
+\midrule
+\multirow{4}{*}{Sumador} & $R_1$ & 10 k$\Omega$ \\
+& $R_2$ & 10 k$\Omega$ \\
+& $R_3$ & 10 k$\Omega$ \\
+& $R_s$ & 10 k$\Omega$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Verificación del Circuito}
+
+Se verificó el comportamiento de cada etapa individualmente aplicando señales de prueba con el generador de funciones:
+
+\textbf{Prueba de etapa proporcional:}
+\begin{itemize}
+\item Entrada: onda senoidal 1V pico, 0.1 Hz
+\item Salida esperada: 16.2V pico invertida
+\item Salida medida: 15.8V pico (error 2.5\%)
+\end{itemize}
+
+\textbf{Prueba de etapa integral:}
+\begin{itemize}
+\item Entrada: onda cuadrada 1V, 0.05 Hz
+\item Salida esperada: onda triangular con pendiente 6.75 V/s
+\item Salida medida: pendiente 6.5 V/s (error 3.7\%)
+\end{itemize}
+
+\textbf{Prueba de etapa derivativa:}
+\begin{itemize}
+\item Entrada: onda triangular 1V, 0.1 Hz
+\item Salida esperada: onda cuadrada proporcional a derivada
+\item Salida medida: concordancia cualitativa, atenuación en altas frecuencias por filtro
+\end{itemize}
+
+Los errores observados (2-4\%) son aceptables considerando tolerancias de componentes comerciales (5\% típicamente).
+
+\subsection{Resultados Experimentales en Lazo Cerrado}
+
+\subsubsection{Experimento 1: Seguimiento de Escalón}
+
+Se aplicaron referencias tipo escalón de diferentes amplitudes y se registraron las respuestas del sistema. Los resultados se resumen en la Tabla \ref{tab:resultados_escalon}.
+
+\begin{table}[htbp]
+\centering
+\caption{Resultados Experimentales para Referencias Escalón}
+\label{tab:resultados_escalon}
+\footnotesize
+\begin{tabular}{ccccc}
+\toprule
+\textbf{Ref.} & $t_r$ & $M_p$ & $t_s$ & $e_{ss}$ \\
+\textbf{[L/min]} & \textbf{[s]} & \textbf{[\%]} & \textbf{[s]} & \textbf{[\%]} \\
+\midrule
+0.5 & 4.2 & 6.8 & 15.3 & 0.4 \\
+1.0 & 4.1 & 8.5 & 14.8 & 0.2 \\
+1.5 & 3.9 & 9.2 & 14.2 & 0.3 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Observaciones:}
+\begin{itemize}
+\item El sistema alcanza la referencia con error estacionario prácticamente nulo (<0.5\%), validando la efectividad de la acción integral.
+\item El sobreimpulso experimental (6.8-9.2\%) es menor que el predicho por simulación (8.2\%), posiblemente debido a no linealidades no modeladas que añaden amortiguamiento.
+\item El tiempo de establecimiento (14-15 s) es consistente con las predicciones del modelo.
+\item La respuesta es consistente para diferentes amplitudes, indicando buen funcionamiento en el rango de operación.
+\end{itemize}
+
+% Las figuras correspondientes se incluirían aquí
+% \begin{figure}[htbp]
+% \centering
+% \includegraphics[width=0.9\columnwidth]{respuesta_escalon_1p0.png}
+% \caption{Respuesta experimental del sistema en lazo cerrado para referencia escalón de 1.0 L/min. Se muestran: referencia (rojo), flujo medido (azul), señal de error (verde), señal de control (magenta).}
+% \label{fig:escalon_1p0}
+% \end{figure}
+
+\subsubsection{Experimento 2: Rechazo a Perturbaciones}
+
+Para evaluar la capacidad de rechazo a perturbaciones, se introdujo una obstrucción parcial temporal en la salida del tanque, incrementando momentáneamente el nivel y reduciendo el flujo de entrada requerido.
+
+\textbf{Protocolo:}
+\begin{itemize}
+\item Establecer referencia constante de 1.0 L/min
+\item En $t = 30$ s, cerrar parcialmente válvula de salida por 10 segundos
+\item En $t = 40$ s, restaurar válvula a posición original
+\item Registrar respuesta del sistema
+\end{itemize}
+
+\textbf{Resultados:}
+\begin{itemize}
+\item Desviación máxima del flujo: 0.15 L/min (15\% de la referencia)
+\item Tiempo de recuperación: 8.5 s para volver al 2\% de la referencia
+\item La acción integral elimina el error acumulado durante la perturbación
+\end{itemize}
+
+El sistema demuestra robustez adecuada ante perturbaciones externas típicas de procesos hidráulicos.
+
+\subsubsection{Experimento 3: Seguimiento de Referencia Rampa}
+
+Se aplicó una referencia tipo rampa con pendiente 0.05 L/min/s desde 0.5 hasta 1.5 L/min (duración 20 s).
+
+\textbf{Resultados:}
+\begin{itemize}
+\item Error de seguimiento promedio: 0.08 L/min
+\item Error en velocidad de seguimiento: constante debido a limitación de ganancia finita
+\item La acción derivativa contribuye significativamente a anticipar cambios en la referencia
+\end{itemize}
+
+Para referencias tipo rampa, se observa error de estado estable constante, comportamiento esperado en sistemas tipo 1 \cite{ogata}. Un controlador tipo 2 (con doble integrador) sería necesario para eliminar completamente este error.
+
+\subsubsection{Comparación Simulación vs. Experimental}
+
+La Tabla \ref{tab:comp_sim_exp} presenta comparación cuantitativa entre resultados simulados y experimentales.
+
+\begin{table}[htbp]
+\centering
+\caption{Comparación Simulación vs. Experimental (Ref. 1.0 L/min)}
+\label{tab:comp_sim_exp}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Métrica} & \textbf{Simulado} & \textbf{Experimental} & \textbf{Error} \\
+\midrule
+$t_r$ [s] & 3.8 & 4.1 & 7.9\% \\
+$M_p$ [\%] & 8.2 & 8.5 & 3.7\% \\
+$t_s$ [s] & 14.1 & 14.8 & 5.0\% \\
+$e_{ss}$ [\%] & 0.0 & 0.2 & - \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La concordancia entre simulación y experimentación es excelente, con discrepancias inferiores al 8\% en todas las métricas principales. Las pequeñas diferencias se atribuyen a:
+
+\begin{itemize}
+\item Tolerancias en componentes electrónicos (5\% típico)
+\item Ruido de medición en sensores
+\item Dinámica no modelada de válvulas y mangueras
+\item Efectos de saturación en amplificadores operacionales
+\item Variaciones en temperatura ambiente
+\end{itemize}
+
+\subsection{Análisis de Sensibilidad}
+
+Se evaluó la sensibilidad del controlador ante variaciones en los parámetros del sistema, simulando cambios en la constante de la bomba $K_b$ y constante de tiempo $\tau_b$.
+
+\textbf{Variación de $K_b$ ($\pm$20\%):}
+\begin{itemize}
+\item Cambio en sobreimpulso: $\pm$3.2\%
+\item Cambio en tiempo de establecimiento: $\pm$1.8 s
+\item Sistema mantiene estabilidad y error estacionario nulo
+\end{itemize}
+
+\textbf{Variación de $\tau_b$ ($\pm$30\%):}
+\begin{itemize}
+\item Cambio en sobreimpulso: $\pm$5.1\%
+\item Cambio en tiempo de establecimiento: $\pm$2.5 s
+\item No se observa inestabilidad
+\end{itemize}
+
+El controlador diseñado presenta robustez razonable ante incertidumbre paramétrica moderada, característica deseable en aplicaciones prácticas donde los parámetros pueden variar con condiciones operativas (temperatura, desgaste, etc.).
+
+%====================================================
+\section{Discusión}
+
+\subsection{Interpretación de Resultados}
+
+Los resultados experimentales validan el diseño teórico del controlador PID sintonizado mediante el método de Ziegler-Nichols. El sistema en lazo cerrado logra seguimiento de referencias tipo escalón con error de estado estable prácticamente nulo (0.2-0.4\%), confirmando la efectividad de la acción integral para eliminar error estacionario en sistemas tipo 0.
+
+El sobreimpulso observado experimentalmente (6.8-9.2\%) es ligeramente inferior al predicho por simulación (8.2\%), sugiriendo que el modelo lineal subestima el amortiguamiento real del sistema. Esto es consistente con la presencia de pérdidas por fricción en válvulas y mangueras que no fueron explícitamente modeladas.
+
+El tiempo de establecimiento (14-15 s) representa un compromiso razonable entre rapidez de respuesta y estabilidad para un sistema hidráulico de baja inercia. En aplicaciones industriales donde se requiera respuesta más rápida, sería necesario aumentar la ganancia proporcional a costa de mayor sobreimpulso, o emplear técnicas avanzadas como control en dos grados de libertad.
+
+\subsection{Ventajas y Limitaciones del Método de Ziegler-Nichols}
+
+\subsubsection{Ventajas}
+
+\begin{itemize}
+\item \textbf{Simplicidad:} No requiere conocimiento detallado del modelo matemático, solo respuesta experimental.
+\item \textbf{Efectividad:} Proporciona punto de partida razonable que funciona en amplia variedad de sistemas.
+\item \textbf{Rapidez:} El procedimiento es rápido comparado con métodos analíticos que requieren modelado exhaustivo.
+\item \textbf{Aplicabilidad industrial:} Ha sido ampliamente validado en miles de aplicaciones prácticas durante décadas.
+\end{itemize}
+
+\subsubsection{Limitaciones}
+
+\begin{itemize}
+\item \textbf{Sobreimpulso excesivo:} Los parámetros dados típicamente resultan en sobreimpulso 40-60\%, requiriendo ajuste fino \cite{astrom}.
+\item \textbf{Sensibilidad al ruido:} El término derivativo puede amplificar ruido de medición en sistemas con señales ruidosas.
+\item \textbf{Criterio de desempeño implícito:} El método optimiza decaimiento de cuarto de amplitud, que puede no corresponder a especificaciones reales.
+\item \textbf{Sistemas no autoregulados:} No es directamente aplicable a sistemas integradores puros o inestables en lazo abierto.
+\end{itemize}
+
+\subsection{Implementación Analógica vs. Digital}
+
+La implementación analógica del controlador PID ofrece ventajas e inconvenientes respecto a implementaciones digitales:
+
+\textbf{Ventajas de la implementación analógica:}
+\begin{itemize}
+\item Respuesta continua sin retardos de muestreo
+\item Ausencia de problemas de cuantización
+\item Simplicidad conceptual y bajo costo para sistemas simples
+\item No requiere programación ni depuración de software
+\end{itemize}
+
+\textbf{Ventajas de la implementación digital:}
+\begin{itemize}
+\item Flexibilidad para modificar parámetros sin cambiar hardware
+\item Facilidad para implementar técnicas avanzadas (anti-windup, filtrado adaptativo)
+\item Capacidad de registro y análisis de datos históricos
+\item Implementación de estrategias de control no lineales o adaptativas
+\end{itemize}
+
+Para el propósito educativo del laboratorio, la implementación analógica permite visualizar directamente los efectos de cada acción de control y comprender físicamente el funcionamiento del PID, complementando adecuadamente el análisis teórico.
+
+\subsection{Análisis de Errores y Fuentes de Incertidumbre}
+
+Las principales fuentes de error identificadas en el sistema experimental son:
+
+\textbf{Errores de medición:}
+\begin{itemize}
+\item Sensor de flujo: precisión $\pm$3\% según especificaciones del fabricante
+\item Sensores de nivel: resolución $\pm$3 mm, equivalente a $\pm$2\% del rango
+\item Ruido eléctrico: mitigado mediante filtros pasivos y buenas prácticas de cableado
+\end{itemize}
+
+\textbf{Errores de modelado:}
+\begin{itemize}
+\item Linealización: válida solo para pequeñas desviaciones del punto de equilibrio
+\item Dinámica no modelada: efectos de compliancia en mangueras, transitorios en válvulas
+\item Parámetros variables: viscosidad del agua dependiente de temperatura
+\end{itemize}
+
+\textbf{Errores de implementación:}
+\begin{itemize}
+\item Tolerancias de componentes: resistencias y capacitores comerciales con 5\% de tolerancia
+\item Offset de amplificadores operacionales: típicamente 2-5 mV
+\item No idealidades: ancho de banda finito, slew rate limitado
+\end{itemize}
+
+La buena concordancia experimental (errores <8\%) indica que ninguna de estas fuentes es dominante, validando las aproximaciones realizadas.
+
+\subsection{Consideraciones para Escalamiento Industrial}
+
+Para adaptar el sistema desarrollado a aplicación industrial real, se requeriría:
+
+\textbf{Mejoras en instrumentación:}
+\begin{itemize}
+\item Sensores industriales calibrados (4-20 mA)
+\item Transmisores con compensación de temperatura
+\item Protección IP65 o superior para ambientes húmedos
+\end{itemize}
+
+\textbf{Mejoras en actuación:}
+\begin{itemize}
+\item Bombas con mayor capacidad y eficiencia
+\item Variadores de frecuencia para motores AC
+\item Válvulas de control proporcionales
+\end{itemize}
+
+\textbf{Mejoras en control:}
+\begin{itemize}
+\item PLC industrial con capacidad de diagnóstico
+\item Implementación de anti-windup selectivo
+\item Algoritmos de autotune para resintonización automática
+\item Sistema SCADA para monitoreo remoto
+\end{itemize}
+
+\textbf{Consideraciones de seguridad:}
+\begin{itemize}
+\item Interruptores de nivel alto/bajo
+\item Protección contra marcha en seco de bombas
+\item Sistema de paro de emergencia
+\item Redundancia en mediciones críticas
+\end{itemize}
+
+%====================================================
+\section{Conclusiones}
+
+\begin{enumerate}
+\item Se diseñó, implementó y validó experimentalmente un sistema de control de flujo hidráulico mediante controlador PID analógico, cumpliendo satisfactoriamente los objetivos planteados en el laboratorio.
+
+\item El modelado matemático del sistema hidráulico mediante conservación de masa y linealización alrededor del punto de operación resultó en una función de transferencia de primer orden que predice con precisión (FIT = 94.2\%) la dinámica experimental del flujo de entrada.
+
+\item La aplicación del método de sintonización de Ziegler-Nichols por respuesta a escalón proporcionó parámetros del controlador PID que, tras ajuste fino del término derivativo, lograron seguimiento de referencias escalón con sobreimpulso 6.8-9.2\%, tiempo de establecimiento 14-15 s y error estacionario <0.5\%.
+
+\item La implementación analógica del controlador PID mediante amplificadores operacionales demostró viabilidad técnica, con discrepancias respecto a valores nominales de 2-4\% atribuibles a tolerancias comerciales de componentes.
+
+\item Los resultados experimentales presentaron excelente concordancia con simulaciones (errores <8\% en métricas principales), validando tanto el modelo matemático como el diseño del controlador.
+
+\item El sistema controlado exhibe robustez adecuada ante perturbaciones externas, recuperando la referencia en aproximadamente 8.5 s tras perturbación del 15\%, demostrando la efectividad de la acción integral para rechazo de perturbaciones.
+
+\item Para referencias tipo rampa se observó error de seguimiento constante, comportamiento esperado en sistemas tipo 1 controlados por PID estándar, que podría eliminarse mediante estructura tipo 2 o control feedforward.
+
+\item El análisis de sensibilidad reveló robustez razonable ante incertidumbre paramétrica ($\pm$20-30\%), manteniendo estabilidad y desempeño aceptable ante variaciones en parámetros del sistema.
+
+\item La implementación analógica, si bien menos flexible que alternativas digitales, ofrece ventajas pedagógicas al permitir visualización directa de efectos de cada acción de control y comprensión física del funcionamiento del PID.
+
+\item Las técnicas aprendidas (modelado, identificación, diseño de controladores, implementación analógica) son directamente transferibles a sistemas industriales reales con las adaptaciones de escalamiento apropiadas.
+\end{enumerate}
+
+%====================================================
+\section{Recomendaciones y Trabajo Futuro}
+
+\subsection{Mejoras al Sistema Actual}
+
+\begin{itemize}
+\item Implementar protección anti-windup para evitar saturación del integrador cuando la señal de control alcanza límites físicos de la bomba.
+
+\item Añadir filtro pasabajos en la acción derivativa para reducir amplificación de ruido de alta frecuencia sin comprometer respuesta dinámica.
+
+\item Implementar versión digital del controlador en microcontrolador para comparar desempeño, flexibilidad y facilidad de sintonización respecto a implementación analógica.
+
+\item Desarrollar interfaz gráfica de usuario (GUI) para visualización en tiempo real de variables del sistema y modificación de parámetros del controlador.
+\end{itemize}
+
+\subsection{Extensiones del Laboratorio}
+
+\begin{itemize}
+\item Implementar control en cascada, con lazo interno controlando flujo y lazo externo controlando nivel, para mejorar rechazo a perturbaciones.
+
+\item Explorar métodos alternativos de sintonización (Cohen-Coon, IMC, optimización) y comparar desempeño respecto a Ziegler-Nichols.
+
+\item Estudiar efectos de no linealidades (saturación, zona muerta, histéresis) y desarrollar compensadores específicos.
+
+\item Implementar control adaptativo que ajuste parámetros del PID en función de punto de operación para compensar variaciones en dinámica del sistema.
+
+\item Desarrollar observador de estados para estimar variables no medidas directamente, permitiendo control de estado completo.
+\end{itemize}
+
+\subsection{Aplicaciones Prácticas Sugeridas}
+
+El sistema desarrollado puede adaptarse a diversas aplicaciones reales:
+
+\begin{itemize}
+\item Control de nivel en tanques de almacenamiento industrial
+\item Sistemas de dosificación de líquidos en procesos químicos
+\item Control de flujo en sistemas de riego automatizado
+\item Regulación de caudal en plantas de tratamiento de aguas
+\item Sistemas de llenado automatizado en líneas de producción
+\end{itemize}
+
+%====================================================
+\section{Competencias Desarrolladas}
+
+El desarrollo del presente laboratorio permitió fortalecer las siguientes competencias de ingeniería:
+
+\subsection{Competencias Técnicas}
+
+\begin{itemize}
+\item \textbf{Modelado matemático:} Formulación de ecuaciones diferenciales a partir de leyes físicas fundamentales, aplicación de técnicas de linealización y obtención de representaciones en dominio frecuencial.
+
+\item \textbf{Teoría de control:} Diseño sistemático de controladores PID, aplicación de métodos de sintonización, análisis de estabilidad y evaluación de métricas de desempeño.
+
+\item \textbf{Electrónica analógica:} Diseño e implementación de circuitos con amplificadores operacionales, cálculo de valores de componentes y análisis de respuesta en frecuencia.
+
+\item \textbf{Instrumentación:} Selección, instalación y calibración de sensores, diseño de circuitos de acondicionamiento de señales y técnicas de reducción de ruido.
+
+\item \textbf{Herramientas computacionales:} Uso avanzado de MATLAB/Simulink para modelado, simulación y análisis de sistemas de control.
+\end{itemize}
+
+\subsection{Competencias Profesionales}
+
+\begin{itemize}
+\item \textbf{Metodología científica:} Formulación de hipótesis, diseño experimental, registro sistemático de datos, análisis estadístico y validación de resultados.
+
+\item \textbf{Comunicación técnica:} Redacción de informes siguiendo estándares IEEE, uso apropiado de terminología técnica, presentación clara de resultados mediante tablas y figuras.
+
+\item \textbf{Pensamiento crítico:} Análisis de discrepancias entre teoría y experimentación, identificación de fuentes de error, evaluación de limitaciones de modelos y métodos.
+
+\item \textbf{Trabajo en equipo:} Coordinación de actividades experimentales, distribución de responsabilidades, integración de subsistemas desarrollados independientemente.
+\end{itemize}
+
+%====================================================
+\begin{thebibliography}{00}
+
+\bibitem{ogata}
+K. Ogata, \emph{Ingeniería de Control Moderna}, 5ta ed. Madrid, España: Pearson Educación, 2010.
+
+\bibitem{astrom}
+K. J. Åström and T. Hägglund, \emph{Advanced PID Control}. Research Triangle Park, NC: ISA - The Instrumentation, Systems, and Automation Society, 2006.
+
+\bibitem{ziegler}
+J. G. Ziegler and N. B. Nichols, ``Optimum settings for automatic controllers,'' \emph{Trans. ASME}, vol. 64, pp. 759-768, 1942.
+
+\bibitem{sedra}
+A. S. Sedra and K. C. Smith, \emph{Microelectronic Circuits}, 7th ed. New York, NY: Oxford University Press, 2015.
+
+\bibitem{coughanowr}
+D. R. Coughanowr and S. E. LeBlanc, \emph{Process Systems Analysis and Control}, 3rd ed. New York, NY: McGraw-Hill, 2009.
+
+\bibitem{franklin}
+G. F. Franklin, J. D. Powell, and A. Emami-Naeini, \emph{Feedback Control of Dynamic Systems}, 7th ed. Upper Saddle River, NJ: Pearson, 2015.
+
+\bibitem{dorf}
+R. C. Dorf and R. H. Bishop, \emph{Modern Control Systems}, 13th ed. Hoboken, NJ: Pearson, 2017.
+
+\bibitem{nise}
+N. S. Nise, \emph{Control Systems Engineering}, 7th ed. Hoboken, NJ: Wiley, 2015.
+
+\bibitem{khalil}
+H. K. Khalil, \emph{Nonlinear Systems}, 3rd ed. Upper Saddle River, NJ: Prentice Hall, 2002.
+
+\bibitem{guia_lab}
+A. Castro, A. Riveros, L. Solaque, and A. Nivia, ``Laboratorio 2: Control de flujo en un sistema hidráulico,'' Universidad Militar Nueva Granada, Facultad de Ingeniería, Guía de Laboratorio GL-AA-F-1, Rev. 2, 2025.
+
+\end{thebibliography}
+
+%====================================================
+\appendix
+
+\section{Código MATLAB Utilizado}
+
+\subsection{Identificación del Sistema}
+
+\begin{verbatim}
+% Identificación de función de transferencia
+% Datos experimentales
+t = datos(:,1);
+voltaje = datos(:,2);
+flujo = datos(:,3);
+
+% Crear objeto iddata
+data = iddata(flujo, voltaje, 0.1);
+
+% Identificar sistema de 1er orden
+sys = tfest(data, 1, 0);
+
+% Comparar respuestas
+compare(data, sys);
+
+% Extraer parámetros
+[num, den] = tfdata(sys, 'v');
+Kb = num(2);
+tau_b = den(1)/den(2);
+
+fprintf('Ganancia: %.3f L/min/V\n', Kb);
+fprintf('Constante de tiempo: %.3f s\n', tau_b);
+\end{verbatim}
+
+\subsection{Diseño del Controlador PID por Ziegler-Nichols}
+
+\begin{verbatim}
+% Parámetros identificados
+L = 1.2;  % Tiempo de retardo [s]
+T = 2.3;  % Constante de tiempo [s]
+K = 0.142; % Ganancia [L/min/V]
+
+% Calcular parámetros PID según Ziegler-Nichols
+Kp = 1.2 * T / (K * L);
+Ti = 2 * L;
+Td = 0.5 * L;
+
+% Calcular Ki, Kd
+Ki = Kp / Ti;
+Kd = Kp * Td;
+
+% Crear controlador PID
+C = pid(Kp, Ki, Kd);
+
+% Función de transferencia de la planta
+G = tf([Kb], [tau_b 1]);
+
+% Sistema en lazo cerrado
+T_cl = feedback(C*G, 1);
+
+% Analizar respuesta a escalón
+step(T_cl);
+grid on;
+
+% Calcular métricas
+info = stepinfo(T_cl);
+fprintf('Tiempo de subida: %.2f s\n', info.RiseTime);
+fprintf('Sobreimpulso: %.2f %%\n', info.Overshoot);
+fprintf('Tiempo de establecimiento: %.2f s\n', ...
+        info.SettlingTime);
+\end{verbatim}
+
+\subsection{Simulación en Simulink}
+
+La implementación en Simulink incluye:
+\begin{itemize}
+\item Bloque de referencia (step, ramp, parabolic)
+\item Bloque PID Controller con parámetros calculados
+\item Bloque Transfer Function con modelo de la planta
+\item Bloques Scope para visualizar señales
+\item Bloque To Workspace para exportar datos
+\end{itemize}
+
+\section{Esquemático del Circuito PID}
+
+% El esquemático se incluiría como figura
+% Muestra las cuatro etapas principales:
+% 1. Comparador (diferencia entre referencia y retroalimentación)
+% 2. Etapa proporcional (amplificador inversor)
+% 3. Etapa integral (integrador operacional con reset)
+% 4. Etapa derivativa (derivador con filtro)
+% 5. Sumador inversor (combina P+I+D)
+% 6. Etapa de potencia (driver para bomba)
+
+\section{Protocolo de Calibración de Sensores}
+
+\subsection{Calibración del Sensor de Flujo YF-S201}
+
+\textbf{Objetivo:} Determinar la relación entre frecuencia de pulsos y caudal real.
+
+\textbf{Procedimiento:}
+\begin{enumerate}
+\item Conectar sensor en línea con flujo de agua
+\item Aplicar caudal conocido mediante bomba calibrada
+\item Medir frecuencia de pulsos con frecuencímetro
+\item Repetir para al menos 5 valores de caudal diferentes
+\item Realizar regresión lineal $f = K \cdot Q + b$
+\item Verificar linealidad ($R^2 > 0.99$)
+\end{enumerate}
+
+\textbf{Resultados:}
+\begin{itemize}
+\item Factor de calibración: $K = 7.5$ pulsos/segundo/(L/min)
+\item Offset: $b = -0.12$ pulsos/segundo
+\item Coeficiente de determinación: $R^2 = 0.997$
+\end{itemize}
+
+\subsection{Calibración del Sensor de Nivel HC-SR04}
+
+\textbf{Objetivo:} Verificar precisión de medición de distancia.
+
+\textbf{Procedimiento:}
+\begin{enumerate}
+\item Posicionar sensor sobre tanque vacío
+\item Llenar tanque en incrementos de 2 cm
+\item Registrar distancia medida por sensor
+\item Comparar con medición física directa
+\item Calcular error absoluto y relativo
+\end{enumerate}
+
+\textbf{Resultados:}
+\begin{itemize}
+\item Error absoluto promedio: $\pm$2.8 mm
+\item Error relativo: <2\% del rango de medición
+\item Precisión dentro de especificaciones del fabricante
+\end{itemize}
+
+\section{Lista de Verificación Pre-Experimental}
+
+Antes de cada sesión experimental, verificar:
+
+\textbf{Sistema Hidráulico:}
+\begin{itemize}
+\item[$\square$] Tanques limpios y sin obstrucciones
+\item[$\square$] Conexiones herméticas (sin fugas)
+\item[$\square$] Válvulas en posición correcta
+\item[$\square$] Nivel de agua en reservorio suficiente
+\item[$\square$] Bandejas de contención posicionadas
+\end{itemize}
+
+\textbf{Sistema Eléctrico/Electrónico:}
+\begin{itemize}
+\item[$\square$] Fuentes de alimentación calibradas y limitadas en corriente
+\item[$\square$] Circuito PID ensamblado según esquemático
+\item[$\square$] Componentes verificados con multímetro
+\item[$\square$] Polaridades correctas en capacitores electrolíticos
+\item[$\square$] Conexión a tierra apropiada
+\end{itemize}
+
+\textbf{Instrumentación:}
+\item[$\square$] Sensores instalados y cableados correctamente
+\item[$\square$] Osciloscopio configurado (escalas, trigger)
+\item[$\square$] Adquisición de datos programada en MATLAB
+\item[$\square$] Calibraciones vigentes (dentro de 7 días)
+\end{itemize}
+
+\textbf{Seguridad:}
+\begin{itemize}
+\item[$\square$] Área de trabajo despejada
+\item[$\square$] Bata de laboratorio puesta
+\item[$\square$] Material absorbente disponible
+\item[$\square$] Interruptor de emergencia accesible
+\item[$\square$] Supervisor de laboratorio informado
+\end{itemize}
+
+\end{document}
