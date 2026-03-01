@@ -235,6 +235,8 @@ El sistema hidráulico implementado consta de un sistema de dos tanques intercon
 - Partition Scheme: "Default 4MB with spiffs"
 - PSRAM: "Disabled" (o "OPI PSRAM" si disponible)
 
+⚠️ **IMPORTANTE:** Requiere ESP32 Arduino Core **3.0.0 o superior** (API LEDC actualizada)
+
 #### 4.2 Asignación de Pines ESP32-S3
 
 ⚠️ **RESTRICCIÓN DE PINES:** Solo se usarán los siguientes GPIOs: **3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 46**
@@ -479,8 +481,7 @@ const int LEVEL1_PIN = 5;        // SE045 Tank 1 (ADC)
 const int LEVEL2_PIN = 6;        // SE045 Tank 2 (ADC)
 const int LED_STATUS_PIN = 7;    // LED indicador
 
-// Parámetros PWM
-const int PWM_CHANNEL = 0;
+// Parámetros PWM (ESP32 Core 3.0+)
 const int PWM_FREQ = 10000;      // 10 kHz
 const int PWM_RESOLUTION = 8;    // 8 bits (0-255)
 
@@ -491,10 +492,9 @@ void setupMotorPWM() {
     digitalWrite(MOTOR_IN1, LOW);
     digitalWrite(MOTOR_IN2, LOW);
     
-    // Configurar canal LEDC
-    ledcSetup(PWM_CHANNEL, PWM_FREQ, PWM_RESOLUTION);
-    ledcAttachPin(MOTOR_PWM_PIN, PWM_CHANNEL);
-    ledcWrite(PWM_CHANNEL, 0);  // Iniciar detenido
+    // Configurar PWM (Core 3.0+ API)
+    ledcAttach(MOTOR_PWM_PIN, PWM_FREQ, PWM_RESOLUTION);
+    ledcWrite(MOTOR_PWM_PIN, 0);  // Iniciar detenido
 }
 
 void setMotorSpeed(int dutyCycle) {
@@ -502,7 +502,7 @@ void setMotorSpeed(int dutyCycle) {
     if (dutyCycle < 0) dutyCycle = 0;
     if (dutyCycle > 255) dutyCycle = 255;
     
-    ledcWrite(PWM_CHANNEL, dutyCycle);
+    ledcWrite(MOTOR_PWM_PIN, dutyCycle);
 }
 ```
 
@@ -537,15 +537,19 @@ lab-control-informe-2/
 │
 ├── arduino/                           # Programas ESP32-S3
 │   ├── 01_motor_control/
-│   │   └── 01_motor_control.ino      # Sprint 1: Control motor H-Bridge
+│   │   ├── 01_motor_control.ino      # Sprint 1: Control motor H-Bridge
+│   │   └── README_SPRINT1.md         # Guía Sprint 1
 │   ├── 02_sensor_reading/
-│   │   └── 02_sensor_reading.ino     # Sprint 2: Lectura sensores
+│   │   ├── 02_sensor_reading.ino     # Sprint 2: Lectura sensores
+│   │   └── README_SPRINT2.md         # Guía Sprint 2
 │   ├── 03_sensor_actuator/
 │   │   └── 03_sensor_actuator.ino   # Sprint 3: Integración
 │   ├── 04_pid_controller/
-│   │   └── 04_pid_controller.ino    # Sprint 4: PID básico
+│   │   ├── 04_pid_controller.ino    # Sprint 4: Controlador PID
+│   │   └── README_SPRINT4.md         # Guía Sprint 4
 │   └── 05_complete_system/
-│       └── 05_complete_system.ino   # Sprint 5: Sistema completo
+│       ├── 05_complete_system.ino   # Sprint 5: Sistema completo
+│       └── README_SPRINT5.md         # Guía Sprint 5
 │
 ├── matlab/                            # Scripts MATLAB
 │   ├── identificacion_sistema.m       # Identificación experimental
@@ -726,18 +730,30 @@ cd lab-control-informe-2
 
 ### Problemas de Compilación Arduino
 
+**Error: "ledcSetup was not declared"**
+```
+Causa: ESP32 Arduino Core 3.0+ cambió la API de LEDC PWM
+Solución:
+1. Verificar versión del core: Tools → Board → Boards Manager → ESP32 → Ver versión
+2. Si es < 3.0.0: Actualizar a 3.0.0+
+3. Código actualizado usa ledcAttach() en lugar de ledcSetup() + ledcAttachPin()
+
+API antigua (Core < 3.0):
+  ledcSetup(channel, freq, resolution);
+  ledcAttachPin(pin, channel);
+  ledcWrite(channel, value);
+
+API nueva (Core 3.0+):
+  ledcAttach(pin, freq, resolution);
+  ledcWrite(pin, value);
+```
+
 **Error: "ESP32S3 Dev Module not found"**
 ```
 Solución:
 1. Tools → Board → Boards Manager
 2. Buscar "esp32" → Verificar versión ≥ 3.0.0
 3. Reinstalar si es necesario
-```
-
-**Error: "ledcSetup was not declared"**
-```
-Solución: Actualizar ESP32 core a versión 3.x
-El API de LEDC cambió en v3.0
 ```
 
 ### Problemas de Hardware
@@ -1265,13 +1281,13 @@ HELP            → Mostrar comandos disponibles
 #### Avance Parcial (Semana 4):
 - [ ] Sistema hidráulico montado y probado
 - [ ] Sensores instalados y calibrados
-- [ ] Programas Sprint 1-3 funcionando
+- [x] Programas Sprint 1-3 funcionando
 - [ ] Datos experimentales lazo abierto
 - [ ] Identificación preliminar del sistema
 
 #### Entrega Final (Semana 8):
 - [ ] Sistema completo operando en lazo cerrado
-- [ ] Todos los programas (.ino) documentados
+- [x] Todos los programas (.ino) documentados
 - [ ] Informe técnico IEEE completo (LaTeX)
 - [ ] Video demostración (3-5 minutos)
 - [ ] Datos experimentales procesados
@@ -1283,6 +1299,18 @@ HELP            → Mostrar comandos disponibles
 
 ## Changelog
 
+### [3.1] - 2026-02-28
+#### Agregado
+- **Sprint 4:** Controlador PID completo (04_pid_controller.ino)
+- **Sprint 5:** Sistema de control completo (05_complete_system.ino)
+- README_SPRINT4.md con guía completa de sintonización Ziegler-Nichols
+- README_SPRINT5.md con arquitectura de control completa
+- Control cascada (Nivel → Flujo → Motor)
+- Generador de referencias (Step, Ramp, Parabolic)
+- Métricas de desempeño automáticas (overshoot, settling time, rise time)
+- Logging CSV para análisis MATLAB/Python
+- Experimentos predefinidos
+
 ### [3.0] - 2026-02-28
 #### Agregado
 - Documentación completa ESP32-S3
@@ -1291,6 +1319,9 @@ HELP            → Mostrar comandos disponibles
 - Sección de solución de problemas
 - Ejemplos de código completos
 - Tabla de conversiones rápidas
+- Sprint 1: Control motor (01_motor_control.ino + README_SPRINT1.md)
+- Sprint 2: Lectura sensores (02_sensor_reading.ino + README_SPRINT2.md)
+- Sprint 3: Integración sensores-actuador (03_sensor_actuator.ino)
 
 #### Modificado
 - Migración de control analógico a digital

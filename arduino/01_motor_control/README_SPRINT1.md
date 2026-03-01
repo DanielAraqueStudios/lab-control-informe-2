@@ -1,5 +1,8 @@
 # SPRINT 1: Motor Control - Quick Start Guide
 
+> ⚙️ **Software Requirement:** ESP32 Arduino Core **3.0.0+** (uses new ledcAttach API)  
+> 📌 **Pin Restriction:** Only GPIOs 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 46
+
 ## 📋 Hardware Setup
 
 ### Connections Required
@@ -29,11 +32,140 @@ USB    → ESP32-S3 programming/power
 - **DO NOT** power motor before uploading code
 - Verify all connections before plugging 12V
 - Use separate power supply for H-Bridge (not USB)
-- Common GND between ESP32 and H-Bridge is REQUIRED
+- Common GND between ESP32 and H-Bridge is **REQUIRED**
+- LED on GPIO7 needs 220Ω current-limiting resistor
+
+### 🔌 Connection Checklist:
+- [ ] ESP32 GPIO17 → H-Bridge ENA
+- [ ] ESP32 GPIO15 → H-Bridge IN1
+- [ ] ESP32 GPIO16 → H-Bridge IN2
+- [ ] ESP32 GND → H-Bridge GND (common ground)
+- [ ] H-Bridge OUT1/OUT2 → Motor terminals
+- [ ] 12V Power Supply (+/-) → H-Bridge power input
+- [ ] GPIO7 → 220Ω → LED → GND
+- [ ] ESP32 powered via USB (for programming)
+
+---
+
+## 🔌 DETAILED CONNECTION DIAGRAM
+
+### Complete Wiring Schematic:
+
+```
+                    ┌─────────────────────┐
+                    │   ESP32-S3 DevKit   │
+                    │                     │
+                    │  GPIO 17 ──────────┼─────► ENA (PWM Speed Control)
+                    │  GPIO 15 ──────────┼─────► IN1 (Direction Bit 1)
+                    │  GPIO 16 ──────────┼─────► IN2 (Direction Bit 2)
+                    │  GPIO 7  ────220Ω──┼─────► LED ─── GND
+                    │                     │
+                    │  GND ───────────────┼──┐
+                    │                     │  │
+                    │  USB ◄──────────────┼──┼── Computer (Programming/Power)
+                    └─────────────────────┘  │
+                                             │
+                    ┌─────────────────────┐  │   ┌──────────────┐
+                    │  H-Bridge L298N     │  │   │ 12V Power    │
+                    │                     │  │   │ Supply 2A    │
+                    │  ENA  ◄─────────────┼──┘   │              │
+                    │  IN1  ◄─────────────┼──────┼── (+12V)  ──┼──┐
+                    │  IN2  ◄─────────────┼──┐   │              │  │
+                    │  GND  ──────────────┼──┼───┼── GND    ────┼──┼──┐
+                    │                     │  │   └──────────────┘  │  │
+                    │  OUT1 ──────────────┼──┼───┐                 │  │
+                    │  OUT2 ──────────────┼──┼───┼───┐             │  │
+                    │                     │  │   │   │             │  │
+                    │  +12V ◄─────────────┼──┼───┘   │             │  │
+                    │  GND  ──────────────┼──┘       │             │  │
+                    └─────────────────────┘          │             │  │
+                                                     │             │  │
+                    ┌─────────────────────┐          │             │  │
+                    │  12V DC Motor       │          │             │  │
+                    │  (Peristaltic Pump) │          │             │  │
+                    │                     │          │             │  │
+                    │  Terminal 1  ◄──────┼──────────┘             │  │
+                    │  Terminal 2  ◄──────┼────────────────────────┘  │
+                    └─────────────────────┘                           │
+                                                                      │
+                              COMMON GROUND ◄────────────────────────┘
+```
+
+### Pin-by-Pin Connection Table:
+
+**ESP32-S3 Connections:**
+
+| ESP32 Pin | Connects To | Wire Color (Suggested) | Function |
+|-----------|-------------|------------------------|----------|
+| **GPIO 17** | H-Bridge ENA | Yellow | PWM Speed Control (10kHz) |
+| **GPIO 15** | H-Bridge IN1 | Orange | Direction Control Bit 1 |
+| **GPIO 16** | H-Bridge IN2 | Red | Direction Control Bit 2 |
+| **GPIO 7** | LED Anode (+) via 220Ω | Green | Status Indicator |
+| **GND** | H-Bridge GND + LED Cathode | Black | Common Ground |
+| **USB** | Computer | USB Cable | Power + Programming |
+
+**H-Bridge L298N Connections:**
+
+| H-Bridge Pin | Connects To | Notes |
+|--------------|-------------|-------|
+| **ENA** | ESP32 GPIO 17 | Enable motor (PWM input) |
+| **IN1** | ESP32 GPIO 15 | Logic input 1 |
+| **IN2** | ESP32 GPIO 16 | Logic input 2 |
+| **OUT1** | Motor Terminal 1 | Motor output |
+| **OUT2** | Motor Terminal 2 | Motor output |
+| **+12V** | Power Supply +12V | Motor power input |
+| **GND** | Power Supply GND + ESP32 GND | **CRITICAL: Common ground!** |
+| **+5V** | Leave disconnected | (ESP32 powered via USB) |
+
+### Direction Control Truth Table:
+
+| IN1 (GPIO15) | IN2 (GPIO16) | Motor Action |
+|--------------|--------------|--------------|
+| LOW | LOW | **STOP** (brake) |
+| HIGH | LOW | **FORWARD** |
+| LOW | HIGH | **REVERSE** |
+| HIGH | HIGH | **STOP** (brake) |
+
+### Power Requirements:
+
+- **ESP32-S3**: 5V via USB (500mA typical)
+- **Motor**: 12V DC, 2A max (via H-Bridge)
+- **LED**: 3.3V through 220Ω resistor (~10mA)
+
+### ⚠️ CRITICAL SAFETY WARNINGS:
+
+1. **NEVER** connect H-Bridge 12V to ESP32 pins directly
+2. **ALWAYS** connect common GND between ESP32 and H-Bridge
+3. **NEVER** power motor from USB (insufficient current)
+4. **ALWAYS** use 220Ω current-limiting resistor with LED
+5. **VERIFY** all connections before applying 12V power
+
+### 🔧 Step-by-Step Connection Order:
+
+1. ✅ **Connect ESP32 to computer via USB only** (no other connections)
+2. ✅ **Upload code** and verify Serial Monitor shows welcome message
+3. ✅ **Power OFF** - Disconnect USB
+4. ✅ **Connect signal wires**: GPIO 15→IN1, GPIO 16→IN2, GPIO 17→ENA
+5. ✅ **Connect common ground**: ESP32 GND → H-Bridge GND
+6. ✅ **Connect LED**: GPIO 7 → 220Ω → LED(+) → LED(-) → GND
+7. ✅ **Connect motor**: Motor terminals → H-Bridge OUT1/OUT2
+8. ✅ **Connect 12V power**: Power Supply → H-Bridge (+12V, GND)
+9. ✅ **Reconnect USB** to ESP32
+10. ✅ **Test with command**: Type `SPEED,25` in Serial Monitor
 
 ---
 
 ## 🔧 Upload Instructions
+
+### Prerequisites
+⚠️ **IMPORTANT:** Requires **ESP32 Arduino Core 3.0.0 or higher**
+
+**Check your version:**
+- Tools → Board → Boards Manager → Search "esp32"
+- If version < 3.0.0: Click "Update" or "Install" version 3.0+
+- Core 3.0+ uses new LEDC API (ledcAttach instead of ledcSetup)
+
+### Upload Steps
 
 1. **Open Arduino IDE**
 2. **Configure Board:**
@@ -187,6 +319,37 @@ Tiempo activo: 45 s
 
 ## ❌ Troubleshooting
 
+### Problem: Compilation Error - "ledcSetup was not declared"
+
+**Error message:**
+```
+error: 'ledcSetup' was not declared in this scope
+error: 'ledcAttachPin' was not declared in this scope; did you mean 'ledcAttach'?
+```
+
+**Cause:** ESP32 Arduino Core 3.0+ changed the LEDC PWM API
+
+**Solution:**
+1. Open: Tools → Board → Boards Manager
+2. Search: "esp32"
+3. Update to version **3.0.0 or higher**
+4. Restart Arduino IDE
+5. Re-compile
+
+**API Changes:**
+```cpp
+// OLD API (Core < 3.0) - DON'T USE
+ledcSetup(channel, freq, resolution);
+ledcAttachPin(pin, channel);
+ledcWrite(channel, value);
+
+// NEW API (Core 3.0+) - CURRENT CODE USES THIS
+ledcAttach(pin, freq, resolution);
+ledcWrite(pin, value);
+```
+
+---
+
 ### Problem: Motor doesn't spin
 
 **Check:**
@@ -198,7 +361,7 @@ Tiempo activo: 45 s
 
 **Solution:**
 ```
-# Test PWM signal with oscilloscope on GPIO25
+# Test PWM signal with oscilloscope on GPIO17
 # Should see square wave at 10kHz when PWM>0
 ```
 
@@ -279,8 +442,9 @@ PWM 255  → 12.0V
 
 ### Screenshots to Capture:
 - Serial Monitor during TEST sequence
-- Oscilloscope showing PWM waveform (GPIO25)
+- Oscilloscope showing PWM waveform (GPIO17 at 10kHz)
 - System STATUS output
+- H-Bridge wiring photo
 
 ---
 

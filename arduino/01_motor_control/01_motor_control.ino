@@ -57,8 +57,8 @@
 // ============================================================================
 // CONFIGURACIÓN PWM (LEDC - LED Controller)
 // ============================================================================
+// ESP32 Arduino Core 3.0+ usa ledcAttach() en lugar de ledcSetup()
 
-#define PWM_CHANNEL      0     // Canal LEDC (0-15 disponibles)
 #define PWM_FREQUENCY    10000 // 10 kHz (óptimo para motores DC)
 #define PWM_RESOLUTION   8     // 8 bits = 0-255
 
@@ -168,16 +168,15 @@ void loop() {
 // ============================================================================
 
 void setupPWM() {
-  // Configurar canal LEDC
-  ledcSetup(PWM_CHANNEL, PWM_FREQUENCY, PWM_RESOLUTION);
-  
-  // Asociar pin al canal
-  ledcAttachPin(MOTOR_PWM_PIN, PWM_CHANNEL);
+  // ESP32 Core 3.0+: ledcAttach(pin, freq, resolution) reemplaza ledcSetup + ledcAttachPin
+  ledcAttach(MOTOR_PWM_PIN, PWM_FREQUENCY, PWM_RESOLUTION);
   
   // Iniciar con PWM = 0 (motor detenido)
-  ledcWrite(PWM_CHANNEL, 0);
+  ledcWrite(MOTOR_PWM_PIN, 0);
   
   Serial.println("[PWM] Configurado:");
+  Serial.print("  - Pin: GPIO");
+  Serial.println(MOTOR_PWM_PIN);
   Serial.print("  - Frecuencia: ");
   Serial.print(PWM_FREQUENCY);
   Serial.println(" Hz");
@@ -201,8 +200,8 @@ void setMotorPWM(int pwmValue) {
   if (pwmValue < PWM_MIN) pwmValue = PWM_MIN;
   if (pwmValue > PWM_MAX) pwmValue = PWM_MAX;
   
-  // Aplicar PWM
-  ledcWrite(PWM_CHANNEL, pwmValue);
+  // Aplicar PWM (Core 3.0+ usa pin directamente, no canal)
+  ledcWrite(MOTOR_PWM_PIN, pwmValue);
   currentPWM = pwmValue;
   
   // Actualizar estado
