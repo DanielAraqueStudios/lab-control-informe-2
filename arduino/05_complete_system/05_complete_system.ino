@@ -173,7 +173,43 @@ float level2_buffer[FILTER_SIZE] = {0};
 int filter_index = 0;
 
 // ============================================================================
-// VARIABLES MOTOR
+// CALIBRACIÓN DE SENSORES
+// ============================================================================
+
+bool calModeActive = false;
+unsigned long lastCalLogTime = 0;
+const unsigned long CAL_LOG_INTERVAL = 300;  // ms entre lecturas de calibración
+
+// Calibración Tanque 1 (ADC raw)
+float cal1_empty_adc = 0.0;      // ADC cuando tanque vacío
+float cal1_full_adc  = 4095.0;   // ADC cuando tanque lleno
+bool  cal1_calibrated = false;
+
+// Calibración Tanque 2 (ADC raw)
+float cal2_empty_adc = 0.0;
+float cal2_full_adc  = 4095.0;
+bool  cal2_calibrated = false;
+
+// Lee ADC bruto (sin conversión) para calibración
+float readRawADC(int pin) {
+  long adcSum = 0;
+  for (int i = 0; i < ADC_SAMPLES; i++) {
+    adcSum += analogRead(pin);
+    delayMicroseconds(100);
+  }
+  return adcSum / (float)ADC_SAMPLES;
+}
+
+// Convierte ADC bruto a mm usando puntos de calibración
+float adcToHeight(float raw, float emptyADC, float fullADC, float maxHeight) {
+  if (abs(fullADC - emptyADC) < 10.0) return 0.0;  // Sin calibración válida
+  float ratio = (raw - emptyADC) / (fullADC - emptyADC);
+  ratio = constrain(ratio, 0.0, 1.0);
+  return ratio * maxHeight;
+}
+
+// ============================================================================
+// VARIABLES VARIABLES MOTOR
 // ============================================================================
 
 int currentPWM = 0;
@@ -301,6 +337,19 @@ void loop() {
     logCompleteData();
     lastLogTime = millis();
   }
+
+  // Calibration streaming
+  if (calModeActive && (millis() - lastCalLogTime >= CAL_LOG_INTERVAL)) {
+    float r1 = readRawADC(LEVEL1_PIN);
+    float r2 = readRawADC(LEVEL2_PIN);
+    Serial.print("[CAL] T1:");
+    Serial.print(r1, 0);
+    Serial.print(" T2:");
+    Serial.print(r2, 0);
+    Serial.print(" PWM:");
+    Serial.println(currentPWM);
+    lastCalLogTime = millis();
+  }
   
   // LED indica modo
   updateStatusLED();
@@ -329,11 +378,11 @@ float generateReference() {
       if (elapsed >= refDuration) return refFinal;
       return refInitial + (refFinal - refInitial) * (elapsed / refDuration);
       
-    case REF_PARABOLIC:
+    case REF_PARABOLIC: {
       if (elapsed >= refDuration) return refFinal;
       float t_norm = elapsed / refDuration;
       return refInitial + (refFinal - refInitial) * (3*t_norm*t_norm - 2*t_norm*t_norm*t_norm);
-      
+    }
     case REF_SINE:
       return refValue + refAmplitude * sin(2 * PI * refFrequency * elapsed);
       
@@ -563,11 +612,18 @@ float readWaterLevel1() {
     delayMicroseconds(100);
   }
   float adcValue = adcSum / (float)ADC_SAMPLES;
-  float voltage_pin = (adcValue / ADC_RESOLUTION) * ADC_VREF;
-  float voltage_sensor = voltage_pin / VOLTAGE_DIVIDER_FACTOR;
-  float height = (voltage_sensor / SENSOR_MAX_VOLTAGE) * SENSOR_MAX_HEIGHT;
-  
+
+  float height;
+  if (cal1_calibrated) {
+    height = adcToHeight(adcValue, cal1_empty_adc, cal1_full_adc, SENSOR_MAX_HEIGHT);
+  } else {
+    float voltage_pin    = (adcValue / ADC_RESOLUTION) * ADC_VREF;
+    float voltage_sensor = voltage_pin / VOLTAGE_DIVIDER_FACTOR;
+    height = (voltage_sensor / SENSOR_MAX_VOLTAGE) * SENSOR_MAX_HEIGHT;
+  }
+
   level1_buffer[filter_index] = height;
+  filter_index = (filter_index + 1) % FILTER_SIZE;  // avanza índice compartido
   float filtered = 0;
   for (int i = 0; i < FILTER_SIZE; i++) filtered += level1_buffer[i];
   return filtered / FILTER_SIZE;
@@ -580,13 +636,18 @@ float readWaterLevel2() {
     delayMicroseconds(100);
   }
   float adcValue = adcSum / (float)ADC_SAMPLES;
-  float voltage_pin = (adcValue / ADC_RESOLUTION) * ADC_VREF;
-  float voltage_sensor = voltage_pin / VOLTAGE_DIVIDER_FACTOR;
-  float height = (voltage_sensor / SENSOR_MAX_VOLTAGE) * SENSOR_MAX_HEIGHT;
-  
+
+  float height;
+  if (cal2_calibrated) {
+    height = adcToHeight(adcValue, cal2_empty_adc, cal2_full_adc, SENSOR_MAX_HEIGHT);
+  } else {
+    float voltage_pin    = (adcValue / ADC_RESOLUTION) * ADC_VREF;
+    float voltage_sensor = voltage_pin / VOLTAGE_DIVIDER_FACTOR;
+    height = (voltage_sensor / SENSOR_MAX_VOLTAGE) * SENSOR_MAX_HEIGHT;
+  }
+
   level2_buffer[filter_index] = height;
-  filter_index = (filter_index + 1) % FILTER_SIZE;
-  
+  // filter_index ya avanza en readWaterLevel1()
   float filtered = 0;
   for (int i = 0; i < FILTER_SIZE; i++) filtered += level2_buffer[i];
   return filtered / FILTER_SIZE;
@@ -830,6 +891,90 @@ void parseCommand(String cmd) {
     Serial.println("[PID2] Set");
   }
   
+  // SETPWM,<0-255>  — manual velocity in MANUAL mode
+  else if (cmd.startsWith("SETPWM,")) {
+    int pwmVal = cmd.substring(7).toInt();
+    if (currentMode != MODE_MANUAL) {
+      Serial.println("[ERROR] SETPWM solo funciona en modo MANUAL");
+    } else if (pwmVal < 0 || pwmVal > 255) {
+      Serial.println("[ERROR] PWM fuera de rango (0-255)");
+    } else {
+      setMotorPWM(pwmVal);
+      Serial.print("[PWM] ");
+      Serial.print(pwmVal);
+      Serial.print(" (");
+      Serial.print((pwmVal * 100.0) / 255.0, 1);
+      Serial.println("%)");
+    }
+  }
+
+  // CALMODE,<pwm_pct>  — entra en modo calibración
+  else if (cmd.startsWith("CALMODE")) {
+    int pwmPct = 60;  // default 60%
+    if (cmd.indexOf(',') != -1) {
+      pwmPct = constrain(cmd.substring(cmd.indexOf(',') + 1).toInt(), 0, 100);
+    }
+    int pwmVal = (pwmPct * 255) / 100;
+    // Detener PIDs antes de calibrar
+    pidFlow.enabled = false;
+    pidLevel1.enabled = false;
+    pidLevel2.enabled = false;
+    calModeActive = true;
+    setMotorPWM(pwmVal);
+    Serial.print("[CAL] Modo calibración activo. PWM=");
+    Serial.print(pwmVal);
+    Serial.print(" (");
+    Serial.print(pwmPct);
+    Serial.println("%). Use TANK1_EMPTY / TANK1_FULL / TANK2_EMPTY / TANK2_FULL para marcar niveles");
+  }
+
+  // CALSTOP  — salir de modo calibración
+  else if (cmd == "CALSTOP") {
+    calModeActive = false;
+    stopMotor();
+    Serial.println("[CAL] Modo calibración detenido");
+  }
+
+  // SETCAL,<tank>,<empty_adc>,<full_adc>  — aplica calibración
+  else if (cmd.startsWith("SETCAL,")) {
+    int c1 = cmd.indexOf(',');
+    int c2 = cmd.indexOf(',', c1 + 1);
+    int c3 = cmd.indexOf(',', c2 + 1);
+    int tank = cmd.substring(c1 + 1, c2).toInt();
+    float emptyADC = cmd.substring(c2 + 1, c3).toFloat();
+    float fullADC  = cmd.substring(c3 + 1).toFloat();
+    if (tank == 1) {
+      cal1_empty_adc = emptyADC;
+      cal1_full_adc  = fullADC;
+      cal1_calibrated = true;
+      Serial.print("[CAL] Tank1 calibrado: empty=");
+      Serial.print(emptyADC, 0);
+      Serial.print(" full=");
+      Serial.println(fullADC, 0);
+    } else if (tank == 2) {
+      cal2_empty_adc = emptyADC;
+      cal2_full_adc  = fullADC;
+      cal2_calibrated = true;
+      Serial.print("[CAL] Tank2 calibrado: empty=");
+      Serial.print(emptyADC, 0);
+      Serial.print(" full=");
+      Serial.println(fullADC, 0);
+    } else {
+      Serial.println("[ERROR] Tank debe ser 1 o 2");
+    }
+  }
+
+  // GETCAL  — muestra calibración actual
+  else if (cmd == "GETCAL") {
+    Serial.println("[CAL] === Calibración actual ===");
+    Serial.print("[CAL] Tank1: empty="); Serial.print(cal1_empty_adc,0);
+    Serial.print(" full="); Serial.print(cal1_full_adc,0);
+    Serial.println(cal1_calibrated ? " [OK]" : " [sin calibrar]");
+    Serial.print("[CAL] Tank2: empty="); Serial.print(cal2_empty_adc,0);
+    Serial.print(" full="); Serial.print(cal2_full_adc,0);
+    Serial.println(cal2_calibrated ? " [OK]" : " [sin calibrar]");
+  }
+
   // STARTCTRL
   else if (cmd == "STARTCTRL") {
     switch(currentMode) {
@@ -971,6 +1116,7 @@ void printHelp() {
   Serial.println("╠══════════════════════════════════════════════════════════════╣");
   Serial.println("║ SETMODE,<mode>         - Modos: MANUAL, AUTO_FLOW,          ║");
   Serial.println("║                          AUTO_LEVEL1, AUTO_LEVEL2, CASCADE   ║");
+  Serial.println("║ SETPWM,<0-255>         - Velocidad manual (solo MANUAL)     ║");
   Serial.println("║ SETREF,<type>,<params> - Tipo: STEP,0,1                     ║");
   Serial.println("║                          RAMP,0,1,10  PARA,0,1,10            ║");
   Serial.println("║ SETPID1,<Kp>,<Ki>,<Kd> - Ajustar PID Nivel 1                ║");

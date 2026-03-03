@@ -49,6 +49,134 @@ Este es el código **FINAL Y COMPLETO** que integra todos los sprints anteriores
 └─────────────────────────────────────────────────────────┘
 ```
 
+---
+
+## Pinout Completo — ESP32-S3
+
+### Diagrama de Conexiones
+
+```
+                         ┌──────────────────────────────┐
+                         │         ESP32-S3             │
+                         │                              │
+               3.3V ─────┤ 3V3                    GND  ├───── GND (común)
+                         │                              │
+   ┌─ YF-S401 (Signal) ──┤ GPIO 4    (INPUT PULLUP)    │
+   │                     │                              │
+   ├─ SE045 Tank 1 ───── ┤ GPIO 5    (ADC1 / INPUT)    │
+   │                     │                              │
+   ├─ SE045 Tank 2 ───── ┤ GPIO 6    (ADC1 / INPUT)    │
+   │                     │                              │
+   │  LED de estado ───── ┤ GPIO 7    (OUTPUT)          │
+   │                     │                              │
+   │  H-Bridge IN1 ───── ┤ GPIO 15   (OUTPUT)          │
+   │                     │                              │
+   │  H-Bridge IN2 ───── ┤ GPIO 16   (OUTPUT)          │
+   │                     │                              │
+   └─ H-Bridge ENA (PWM)─ ┤ GPIO 17   (PWM / OUTPUT)   │
+                         │                              │
+               USB ──────┤ USB-UART  (115200 baud)      │
+                         └──────────────────────────────┘
+```
+
+---
+
+### Tabla de Pines
+
+| GPIO | Función | Dirección | Componente | Señal |
+|------|---------|-----------|------------|-------|
+| **4** | Caudalímetro | INPUT PULLUP | YF-S401 | Pulsos digitales |
+| **5** | Nivel Tanque 1 | INPUT (ADC) | SE045 | 0 – 3.3 V analógico |
+| **6** | Nivel Tanque 2 | INPUT (ADC) | SE045 | 0 – 3.3 V analógico |
+| **7** | LED de estado | OUTPUT | LED + resistencia | HIGH = activo |
+| **15** | Motor IN1 | OUTPUT | H-Bridge | DIR giro |
+| **16** | Motor IN2 | OUTPUT | H-Bridge | DIR giro |
+| **17** | Motor ENA | OUTPUT (PWM) | H-Bridge | Control velocidad |
+
+---
+
+### Configuración del PWM (GPIO 17)
+
+| Parámetro | Valor |
+|-----------|-------|
+| Frecuencia | 10 000 Hz |
+| Resolución | 8 bits (0 – 255) |
+| API | `ledcAttach()` (ESP32 Core ≥ 3.0) |
+
+---
+
+### Sensores — Detalles de Conexión
+
+#### YF-S401 — Caudalímetro (GPIO 4)
+
+```
+YF-S401          ESP32-S3
+  VCC  ─────────  5V  (o 3.3V según módulo)
+  GND  ─────────  GND
+  OUT  ─────────  GPIO 4  (INPUT_PULLUP activado internamente)
+```
+
+> **Factor de conversión:** 7.5 pulsos/segundo → 1 L/min  
+> **Rango típico:** 0.3 – 6 L/min
+
+---
+
+#### SE045 — Sensor de Nivel Tanque 1 (GPIO 5)
+
+```
+SE045 (Tank 1)   ESP32-S3
+  VCC  ─────────  3.3V
+  GND  ─────────  GND
+  OUT  ─────────  GPIO 5  (ADC1, 12 bits, promedio 10 muestras)
+```
+
+---
+
+#### SE045 — Sensor de Nivel Tanque 2 (GPIO 6)
+
+```
+SE045 (Tank 2)   ESP32-S3
+  VCC  ─────────  3.3V
+  GND  ─────────  GND
+  OUT  ─────────  GPIO 6  (ADC1, 12 bits, promedio 10 muestras)
+```
+
+> **Nota SE045:** Sensor ultrasónico / presión diferencial. La lectura ADC (0–4095)  
+> se convierte a mm mediante mapeo lineal configurado en el código.
+
+---
+
+#### H-Bridge — Driver de Motor
+
+```
+H-Bridge         ESP32-S3          Bomba
+  ENA  ─────────  GPIO 17 (PWM)
+  IN1  ─────────  GPIO 15
+  IN2  ─────────  GPIO 16
+  OUT1 ─────────────────────────── Motor +
+  OUT2 ─────────────────────────── Motor −
+  VCC  ─────────  12V (fuente externa)
+  GND  ─────────  GND (común con ESP32)
+```
+
+> **Sentido de giro:** IN1=HIGH, IN2=LOW → giro horario (impulsión)  
+> **Frenado:** IN1=LOW, IN2=LOW + ENA=0
+
+---
+
+### Fuentes de Alimentación
+
+| Componente | Tensión | Corriente máx. |
+|------------|---------|----------------|
+| ESP32-S3 | 5V (USB) / 3.3V (regulado) | 500 mA |
+| H-Bridge + Motor | 12V DC | 2–5 A (según bomba) |
+| YF-S401 | 5V DC | 15 mA |
+| SE045 (×2) | 3.3V DC | 15 mA c/u |
+
+> ⚠️ **GND común obligatorio** entre la fuente de 12V del H-Bridge y el GND del ESP32-S3.
+
+---
+
 ## Modos de Operación
 
 ### 1. MANUAL

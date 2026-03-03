@@ -188,6 +188,43 @@ class CommandBuilder:
         return f"EXPERIMENT,{name.upper()}\n"
     
     @staticmethod
+    def set_pwm(value: int) -> str:
+        """Set manual PWM (0-255). Only works in MANUAL mode."""
+        value = max(0, min(255, int(value)))
+        return f"SETPWM,{value}\n"
+
+    @staticmethod
+    def cal_mode(pwm_pct: int = 60) -> str:
+        """Enter calibration mode.
+        
+        Args:
+            pwm_pct: Motor duty cycle percentage (0-100). Default 60%.
+        """
+        pwm_pct = max(0, min(100, int(pwm_pct)))
+        return f"CALMODE,{pwm_pct}\n"
+
+    @staticmethod
+    def cal_stop() -> str:
+        """Exit calibration mode and stop motor."""
+        return "CALSTOP\n"
+
+    @staticmethod
+    def set_calibration(tank: int, empty_adc: float, full_adc: float) -> str:
+        """Send calibration points to Arduino.
+        
+        Args:
+            tank:      1 or 2
+            empty_adc: Raw ADC value when tank is empty
+            full_adc:  Raw ADC value when tank is full
+        """
+        return f"SETCAL,{tank},{int(empty_adc)},{int(full_adc)}\n"
+
+    @staticmethod
+    def get_calibration() -> str:
+        """Request current calibration values from Arduino."""
+        return "GETCAL\n"
+
+    @staticmethod
     def help_command() -> str:
         """Request help/command list."""
         return "HELP\n"

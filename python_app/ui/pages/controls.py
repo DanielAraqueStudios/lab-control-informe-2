@@ -1,9 +1,11 @@
 """
 Control panel page for sending commands and adjusting parameters.
 """
+import re
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-                              QComboBox, QGroupBox, QFormLayout, QDoubleSpinBox, 
-                              QSlider, QRadioButton, QButtonGroup, QTabWidget)
+                              QComboBox, QGroupBox, QFormLayout, QDoubleSpinBox,
+                              QSlider, QSpinBox, QRadioButton, QButtonGroup, QTabWidget,
+                              QFrame, QScrollArea)
 from PyQt6.QtCore import Qt
 from core import CommandBuilder, ControlMode
 from viewmodels import AppState
@@ -17,7 +19,15 @@ class ControlsPage(QWidget):
         super().__init__(parent)
         self.app_state = app_state
         self.serial_worker = serial_worker
-        
+
+        # --- Calibration state ---
+        self.cal_t1_empty_adc: float = 0.0
+        self.cal_t1_full_adc:  float = 4095.0
+        self.cal_t2_empty_adc: float = 0.0
+        self.cal_t2_full_adc:  float = 4095.0
+        self._cur_t1_adc: float = 0.0
+        self._cur_t2_adc: float = 0.0
+
         # Main layout
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
@@ -42,7 +52,13 @@ class ControlsPage(QWidget):
         
         # Tab 4: Experiments
         tabs.addTab(self.create_experiments_tab(), "Experiments")
-        
+
+        # Tab 5: Calibration
+        tabs.addTab(self.create_calibration_tab(), "🔧 Calibration")
+
+        # Connect status messages to calibration live display
+        self.serial_worker.status_received.connect(self._parse_cal_message)
+
         layout.addWidget(tabs, stretch=1)
         
         # Emergency stop button (always visible)
@@ -78,12 +94,52 @@ class ControlsPage(QWidget):
             self.mode_buttons.addButton(radio, i)
             mode_layout.addWidget(radio)
         
-        # Set MANUAL as default
-        self.mode_buttons.button(0).setChecked(True)
-        
+        # NOTE: setChecked(True) is called AFTER manual_pwm_group is created below
+        # to avoid AttributeError when the toggled signal fires.
+
         mode_group.setLayout(mode_layout)
         layout.addWidget(mode_group)
-        
+
+        # ── Manual PWM control (only active in MANUAL mode) ──────────────
+        self.manual_pwm_group = QGroupBox("Manual Velocity (PWM)")
+        pwm_layout = QVBoxLayout()
+
+        # Slider row
+        slider_row = QHBoxLayout()
+        self.pwm_slider = QSlider(Qt.Orientation.Horizontal)
+        self.pwm_slider.setRange(0, 255)
+        self.pwm_slider.setValue(0)
+        self.pwm_slider.setTickInterval(25)
+        self.pwm_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        slider_row.addWidget(self.pwm_slider, stretch=1)
+
+        self.pwm_spin = QSpinBox()
+        self.pwm_spin.setRange(0, 255)
+        self.pwm_spin.setValue(0)
+        self.pwm_spin.setFixedWidth(70)
+        slider_row.addWidget(self.pwm_spin)
+        pwm_layout.addLayout(slider_row)
+
+        # Percentage label
+        self.pwm_pct_label = QLabel("0 / 255  —  0.0%")
+        self.pwm_pct_label.setObjectName("caption")
+        pwm_layout.addWidget(self.pwm_pct_label)
+
+        # Send button
+        send_pwm_btn = QPushButton("⚡ Send PWM")
+        send_pwm_btn.clicked.connect(self.send_manual_pwm)
+        pwm_layout.addWidget(send_pwm_btn)
+
+        # Sync slider ↔ spinbox
+        self.pwm_slider.valueChanged.connect(self._on_slider_changed)
+        self.pwm_spin.valueChanged.connect(self._on_spin_changed)
+
+        self.manual_pwm_group.setLayout(pwm_layout)
+        layout.addWidget(self.manual_pwm_group)
+
+        # Set MANUAL as default (after group exists so set_mode() doesn't crash)
+        self.mode_buttons.button(0).setChecked(True)
+
         # Control actions group
         ctrl_group = QGroupBox("Control Actions")
         ctrl_layout = QVBoxLayout()
@@ -276,9 +332,29 @@ class ControlsPage(QWidget):
         layout.addStretch()
         return widget
     
+    # ── PWM slider/spin sync ──────────────────────────────────────────────
+    def _on_slider_changed(self, value: int):
+        self.pwm_spin.blockSignals(True)
+        self.pwm_spin.setValue(value)
+        self.pwm_spin.blockSignals(False)
+        self.pwm_pct_label.setText(f"{value} / 255  —  {value/255*100:.1f}%")
+
+    def _on_spin_changed(self, value: int):
+        self.pwm_slider.blockSignals(True)
+        self.pwm_slider.setValue(value)
+        self.pwm_slider.blockSignals(False)
+        self.pwm_pct_label.setText(f"{value} / 255  —  {value/255*100:.1f}%")
+
+    def send_manual_pwm(self):
+        """Send SETPWM command to Arduino."""
+        cmd = CommandBuilder.set_pwm(self.pwm_spin.value())
+        self.serial_worker.send_command(cmd)
+
     # Command methods
     def set_mode(self, mode: str):
-        """Send mode change command."""
+        """Send mode change command and enable/disable PWM panel."""
+        is_manual = (mode == "MANUAL")
+        self.manual_pwm_group.setEnabled(is_manual)
         cmd = CommandBuilder.set_mode(mode)
         self.serial_worker.send_command(cmd)
     
@@ -339,3 +415,210 @@ class ControlsPage(QWidget):
         """Update UI based on reference type."""
         # All types use the same parameters for now
         pass
+
+    # =========================================================================
+    # CALIBRATION TAB
+    # =========================================================================
+
+    def create_calibration_tab(self) -> QWidget:
+        """Create calibration / test mode tab."""
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        inner = QWidget()
+        layout = QVBoxLayout(inner)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(16)
+        scroll.setWidget(inner)
+
+        # ---- Flow test group ------------------------------------------------
+        flow_group = QGroupBox("⚡ Flow Test")
+        flow_layout = QVBoxLayout(flow_group)
+        flow_layout.setSpacing(10)
+
+        pwm_row = QHBoxLayout()
+        pwm_row.addWidget(QLabel("Pump PWM:"))
+        self.cal_pwm_slider = QSlider(Qt.Orientation.Horizontal)
+        self.cal_pwm_slider.setRange(0, 100)
+        self.cal_pwm_slider.setValue(60)
+        self.cal_pwm_spin = QSpinBox()
+        self.cal_pwm_spin.setRange(0, 100)
+        self.cal_pwm_spin.setValue(60)
+        self.cal_pwm_spin.setSuffix("%")
+        self.cal_pwm_label = QLabel("153 / 255 PWM")
+        self.cal_pwm_label.setObjectName("statusLabel")
+        self.cal_pwm_slider.valueChanged.connect(self._on_cal_pwm_slider_changed)
+        self.cal_pwm_spin.valueChanged.connect(self._on_cal_pwm_spin_changed)
+        pwm_row.addWidget(self.cal_pwm_slider, stretch=1)
+        pwm_row.addWidget(self.cal_pwm_spin)
+        pwm_row.addWidget(self.cal_pwm_label)
+        flow_layout.addLayout(pwm_row)
+
+        btn_row = QHBoxLayout()
+        self.cal_start_btn = QPushButton("▶ Start Cal Flow")
+        self.cal_start_btn.setObjectName("primaryButton")
+        self.cal_start_btn.clicked.connect(self.start_cal_flow)
+        self.cal_stop_btn = QPushButton("⏹ Stop")
+        self.cal_stop_btn.setObjectName("dangerButton")
+        self.cal_stop_btn.clicked.connect(self.stop_cal_flow)
+        btn_row.addWidget(self.cal_start_btn)
+        btn_row.addWidget(self.cal_stop_btn)
+        flow_layout.addLayout(btn_row)
+        layout.addWidget(flow_group)
+
+        # ---- Live ADC readings group ----------------------------------------
+        live_group = QGroupBox("📊 Live ADC Readings (streaming)")
+        live_layout = QHBoxLayout(live_group)
+        live_layout.setSpacing(20)
+
+        self.cal_t1_adc_label = QLabel("T1 ADC: ---")
+        self.cal_t1_adc_label.setObjectName("statusLabel")
+        self.cal_t2_adc_label = QLabel("T2 ADC: ---")
+        self.cal_t2_adc_label.setObjectName("statusLabel")
+        live_layout.addWidget(self.cal_t1_adc_label, alignment=Qt.AlignmentFlag.AlignCenter)
+        live_layout.addWidget(self.cal_t2_adc_label, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(live_group)
+
+        # ---- Tank 1 calibration group ---------------------------------------
+        t1_group = QGroupBox("🚿 Tank 1 Calibration")
+        t1_layout = QVBoxLayout(t1_group)
+        t1_btn_row = QHBoxLayout()
+        self.cal_t1_empty_btn = QPushButton("⬤ Mark T1 EMPTY")
+        self.cal_t1_empty_btn.clicked.connect(lambda: self.record_tank_empty(1))
+        self.cal_t1_full_btn = QPushButton("✅ Mark T1 FULL")
+        self.cal_t1_full_btn.clicked.connect(lambda: self.record_tank_full(1))
+        t1_btn_row.addWidget(self.cal_t1_empty_btn)
+        t1_btn_row.addWidget(self.cal_t1_full_btn)
+        t1_layout.addLayout(t1_btn_row)
+        self.cal_t1_values_label = QLabel("Empty ADC: --   |   Full ADC: --")
+        self.cal_t1_values_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        t1_layout.addWidget(self.cal_t1_values_label)
+        layout.addWidget(t1_group)
+
+        # ---- Tank 2 calibration group ---------------------------------------
+        t2_group = QGroupBox("🚿 Tank 2 Calibration")
+        t2_layout = QVBoxLayout(t2_group)
+        t2_btn_row = QHBoxLayout()
+        self.cal_t2_empty_btn = QPushButton("⬤ Mark T2 EMPTY")
+        self.cal_t2_empty_btn.clicked.connect(lambda: self.record_tank_empty(2))
+        self.cal_t2_full_btn = QPushButton("✅ Mark T2 FULL")
+        self.cal_t2_full_btn.clicked.connect(lambda: self.record_tank_full(2))
+        t2_btn_row.addWidget(self.cal_t2_empty_btn)
+        t2_btn_row.addWidget(self.cal_t2_full_btn)
+        t2_layout.addLayout(t2_btn_row)
+        self.cal_t2_values_label = QLabel("Empty ADC: --   |   Full ADC: --")
+        self.cal_t2_values_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        t2_layout.addWidget(self.cal_t2_values_label)
+        layout.addWidget(t2_group)
+
+        # ---- Apply calibration group ----------------------------------------
+        apply_group = QGroupBox("🎯 Apply Calibration")
+        apply_layout = QVBoxLayout(apply_group)
+
+        apply_btn = QPushButton("🎯 Apply Calibration to Arduino")
+        apply_btn.setObjectName("primaryButton")
+        apply_btn.clicked.connect(self.apply_calibration)
+        apply_layout.addWidget(apply_btn)
+
+        getcal_btn = QPushButton("📝 Read Current Calibration from Arduino")
+        getcal_btn.clicked.connect(self.get_calibration)
+        apply_layout.addWidget(getcal_btn)
+
+        self.cal_status_label = QLabel("Status: idle")
+        self.cal_status_label.setObjectName("statusLabel")
+        self.cal_status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        apply_layout.addWidget(self.cal_status_label)
+
+        layout.addWidget(apply_group)
+        layout.addStretch()
+        return scroll
+
+    # -- Calibration slots ----------------------------------------------------
+
+    def _on_cal_pwm_slider_changed(self, value: int):
+        self.cal_pwm_spin.blockSignals(True)
+        self.cal_pwm_spin.setValue(value)
+        self.cal_pwm_spin.blockSignals(False)
+        raw = (value * 255) // 100
+        self.cal_pwm_label.setText(f"{raw} / 255 PWM")
+
+    def _on_cal_pwm_spin_changed(self, value: int):
+        self.cal_pwm_slider.blockSignals(True)
+        self.cal_pwm_slider.setValue(value)
+        self.cal_pwm_slider.blockSignals(False)
+        raw = (value * 255) // 100
+        self.cal_pwm_label.setText(f"{raw} / 255 PWM")
+
+    def start_cal_flow(self):
+        """Enter calibration mode on Arduino with the selected PWM."""
+        pct = self.cal_pwm_slider.value()
+        cmd = CommandBuilder.cal_mode(pct)
+        self.serial_worker.send_command(cmd)
+        self.cal_status_label.setText(f"Status: calibration active @ {pct}%")
+
+    def stop_cal_flow(self):
+        """Exit calibration mode."""
+        self.serial_worker.send_command(CommandBuilder.cal_stop())
+        self.cal_status_label.setText("Status: stopped")
+
+    def record_tank_empty(self, tank: int):
+        """Record current ADC value as 'empty' for given tank."""
+        if tank == 1:
+            self.cal_t1_empty_adc = self._cur_t1_adc
+            self._refresh_t1_labels()
+        else:
+            self.cal_t2_empty_adc = self._cur_t2_adc
+            self._refresh_t2_labels()
+
+    def record_tank_full(self, tank: int):
+        """Record current ADC value as 'full' for given tank."""
+        if tank == 1:
+            self.cal_t1_full_adc = self._cur_t1_adc
+            self._refresh_t1_labels()
+        else:
+            self.cal_t2_full_adc = self._cur_t2_adc
+            self._refresh_t2_labels()
+
+    def _refresh_t1_labels(self):
+        self.cal_t1_values_label.setText(
+            f"Empty ADC: {self.cal_t1_empty_adc:.0f}   |   Full ADC: {self.cal_t1_full_adc:.0f}"
+        )
+
+    def _refresh_t2_labels(self):
+        self.cal_t2_values_label.setText(
+            f"Empty ADC: {self.cal_t2_empty_adc:.0f}   |   Full ADC: {self.cal_t2_full_adc:.0f}"
+        )
+
+    def apply_calibration(self):
+        """Send SETCAL commands to Arduino for both tanks."""
+        if self.cal_t1_full_adc <= self.cal_t1_empty_adc:
+            self.cal_status_label.setText("Error: T1 full ADC must be > empty ADC")
+            return
+        if self.cal_t2_full_adc <= self.cal_t2_empty_adc:
+            self.cal_status_label.setText("Error: T2 full ADC must be > empty ADC")
+            return
+        cmd1 = CommandBuilder.set_calibration(1, self.cal_t1_empty_adc, self.cal_t1_full_adc)
+        cmd2 = CommandBuilder.set_calibration(2, self.cal_t2_empty_adc, self.cal_t2_full_adc)
+        self.serial_worker.send_command(cmd1)
+        self.serial_worker.send_command(cmd2)
+        self.cal_status_label.setText(
+            f"Calibration sent — T1 [{self.cal_t1_empty_adc:.0f},{self.cal_t1_full_adc:.0f}]  T2 [{self.cal_t2_empty_adc:.0f},{self.cal_t2_full_adc:.0f}]"
+        )
+
+    def get_calibration(self):
+        """Request current calibration from Arduino."""
+        self.serial_worker.send_command(CommandBuilder.get_calibration())
+
+    def _parse_cal_message(self, status_msg):
+        """Parse [CAL] streaming messages and update live ADC labels."""
+        if getattr(status_msg, 'level', '') != "CAL":
+            return
+        text: str = getattr(status_msg, 'message', '')
+        # Format from Arduino: T1:1234 T2:2345 PWM:153
+        m1 = re.search(r'T1:(\d+(?:\.\d+)?)', text)
+        m2 = re.search(r'T2:(\d+(?:\.\d+)?)', text)
+        if m1:
+            self._cur_t1_adc = float(m1.group(1))
+            self.cal_t1_adc_label.setText(f"T1 ADC: {self._cur_t1_adc:.0f}")
+        if m2:
+            self._cur_t2_adc = float(m2.group(1))
+            self.cal_t2_adc_label.setText(f"T2 ADC: {self._cur_t2_adc:.0f}")
