@@ -51,7 +51,7 @@ def main() -> int:
     # ── Wire signals: serial → app_state ────────────────────────────────────
     serial_worker.telemetry_received.connect(app_state.update_telemetry)
     serial_worker.status_received.connect(app_state.add_status)
-    serial_worker.metrics_received.connect(app_state.update_metrics)
+    serial_worker.metrics_received.connect(app_. state.update_metrics)
     serial_worker.connection_changed.connect(app_state.set_connection)
 
     # ── Main window ──────────────────────────────────────────────────────────
