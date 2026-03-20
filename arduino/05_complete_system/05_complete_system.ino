@@ -237,7 +237,7 @@ PerformanceMetrics metrics = {0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0, false};
 // LOGGING Y ANÁLISIS
 // ============================================================================
 
-bool loggingEnabled = false;
+bool loggingEnabled = true;
 unsigned long lastLogTime = 0;
 unsigned long logInterval = 100;
 int logCounter = 0;

@@ -338,12 +338,14 @@ class ControlsPage(QWidget):
         self.pwm_spin.setValue(value)
         self.pwm_spin.blockSignals(False)
         self.pwm_pct_label.setText(f"{value} / 255  —  {value/255*100:.1f}%")
+        self.send_manual_pwm()
 
     def _on_spin_changed(self, value: int):
         self.pwm_slider.blockSignals(True)
         self.pwm_slider.setValue(value)
         self.pwm_slider.blockSignals(False)
         self.pwm_pct_label.setText(f"{value} / 255  —  {value/255*100:.1f}%")
+        self.send_manual_pwm()
 
     def send_manual_pwm(self):
         """Send SETPWM command to Arduino."""
@@ -540,6 +542,7 @@ class ControlsPage(QWidget):
         self.cal_pwm_spin.blockSignals(False)
         raw = (value * 255) // 100
         self.cal_pwm_label.setText(f"{raw} / 255 PWM")
+        self.start_cal_flow()
 
     def _on_cal_pwm_spin_changed(self, value: int):
         self.cal_pwm_slider.blockSignals(True)
@@ -547,6 +550,7 @@ class ControlsPage(QWidget):
         self.cal_pwm_slider.blockSignals(False)
         raw = (value * 255) // 100
         self.cal_pwm_label.setText(f"{raw} / 255 PWM")
+        self.start_cal_flow()
 
     def start_cal_flow(self):
         """Enter calibration mode on Arduino with the selected PWM."""
