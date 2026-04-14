@@ -63,12 +63,14 @@
 #define MOTOR_IN1_PIN    15
 #define MOTOR_IN2_PIN    16
 #define FLOW_SENSOR_PIN  4
-#define LEVEL1_PIN       5
-#define LEVEL2_PIN       6
+#define TRIG_PIN_1       5
+#define ECHO_PIN_1       6
+#define TRIG_PIN_2       8
+#define ECHO_PIN_2       9
 #define LED_STATUS_PIN   7
 
 // ============================================================================
-// CONFIGURACIÓN PWM Y ADC
+// CONFIGURACIÓN PWM, ADC Y ULTRASÓNICO
 // ============================================================================
 
 #define PWM_FREQUENCY    10000
@@ -76,10 +78,19 @@
 #define PWM_MIN          0
 #define PWM_MAX          255
 
+// Dimensiones de los tanques (en milímetros)
+const float TANK1_HEIGHT_MM = 150.0;  // 15 cm
+const float TANK2_HEIGHT_MM = 160.0;  // 16 cm
+
+// Límites de seguridad (Banda muerta para proteger los sensores)
+const float MAX_LEVEL_ALLOW = 110.0;  // 11 cm máximo nivel de agua
+const float MIN_LEVEL_ALLOW = 70.0;   // 7 cm límite inferior a considerar como vacío
+
 #define ADC_RESOLUTION   4095
 #define ADC_VREF         3.3
 #define ADC_SAMPLES      10
 
+// Parámetros antiguos (obsoletos ahora, pero se conservan para compilación y evitar dependencias rotas en memoria)
 const float VOLTAGE_DIVIDER_FACTOR = 0.6875;
 const float SENSOR_MAX_VOLTAGE = 4.5;
 const float SENSOR_MAX_HEIGHT = 40.0;
@@ -291,6 +302,14 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(FLOW_SENSOR_PIN), 
                   flowPulseCounter, RISING);
   analogReadResolution(12);
+
+  pinMode(TRIG_PIN_1, OUTPUT);
+  pinMode(ECHO_PIN_1, INPUT);
+  digitalWrite(TRIG_PIN_1, LOW);
+  
+  pinMode(TRIG_PIN_2, OUTPUT);
+  pinMode(ECHO_PIN_2, INPUT);
+  digitalWrite(TRIG_PIN_2, LOW);
   
   // Dirección adelante
   setMotorDirection(0);
@@ -338,14 +357,14 @@ void loop() {
     lastLogTime = millis();
   }
 
-  // Calibration streaming
+  // Calibration streaming (ahora manda alturas en mm igual)
   if (calModeActive && (millis() - lastCalLogTime >= CAL_LOG_INTERVAL)) {
-    float r1 = readRawADC(LEVEL1_PIN);
-    float r2 = readRawADC(LEVEL2_PIN);
+    float r1 = readWaterLevel1();
+    float r2 = readWaterLevel2();
     Serial.print("[CAL] T1:");
-    Serial.print(r1, 0);
+    Serial.print(r1, 1);
     Serial.print(" T2:");
-    Serial.print(r2, 0);
+    Serial.print(r2, 1);
     Serial.print(" PWM:");
     Serial.println(currentPWM);
     lastCalLogTime = millis();
@@ -605,48 +624,56 @@ void updateFlowRate() {
                   flowPulseCounter, RISING);
 }
 
-float readWaterLevel1() {
-  long adcSum = 0;
-  for (int i = 0; i < ADC_SAMPLES; i++) {
-    adcSum += analogRead(LEVEL1_PIN);
-    delayMicroseconds(100);
-  }
-  float adcValue = adcSum / (float)ADC_SAMPLES;
+float measureDistanceMm(int trigPin, int echoPin) {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  
+  long duration = pulseIn(echoPin, HIGH, 30000); 
+  if (duration == 0) return TANK1_HEIGHT_MM; // Si falla, que simule vacío
+  return (duration * 0.343) / 2.0;
+}
 
-  float height;
-  if (cal1_calibrated) {
-    height = adcToHeight(adcValue, cal1_empty_adc, cal1_full_adc, SENSOR_MAX_HEIGHT);
-  } else {
-    float voltage_pin    = (adcValue / ADC_RESOLUTION) * ADC_VREF;
-    float voltage_sensor = voltage_pin / VOLTAGE_DIVIDER_FACTOR;
-    height = (voltage_sensor / SENSOR_MAX_VOLTAGE) * SENSOR_MAX_HEIGHT;
+float readWaterLevel1() {
+  float distancia_mm = measureDistanceMm(TRIG_PIN_1, ECHO_PIN_1);
+  float height = TANK1_HEIGHT_MM - distancia_mm;
+  
+  if (height < 0) height = 0; // Prevenir negativos
+
+  // Margen de seguridad: Forzar apagado de bomba si se supera el nivel permitido
+  if (height >= MAX_LEVEL_ALLOW) {
+    Serial.println("[ERROR] T1 Nivel critico " + String(height) + "mm. BOMBA APAGADA.");
+    setMotorPWM(0);
+    // Cambiamos a manual como protección (panic)  
+    if (currentMode != MODE_MANUAL) {
+      currentMode = MODE_MANUAL;
+    }
   }
 
   level1_buffer[filter_index] = height;
-  filter_index = (filter_index + 1) % FILTER_SIZE;  // avanza índice compartido
+  filter_index = (filter_index + 1) % FILTER_SIZE;
   float filtered = 0;
   for (int i = 0; i < FILTER_SIZE; i++) filtered += level1_buffer[i];
   return filtered / FILTER_SIZE;
 }
 
 float readWaterLevel2() {
-  long adcSum = 0;
-  for (int i = 0; i < ADC_SAMPLES; i++) {
-    adcSum += analogRead(LEVEL2_PIN);
-    delayMicroseconds(100);
-  }
-  float adcValue = adcSum / (float)ADC_SAMPLES;
+  float distancia_mm = measureDistanceMm(TRIG_PIN_2, ECHO_PIN_2);
+  float height = TANK2_HEIGHT_MM - distancia_mm;
+  
+  if (height < 0) height = 0;
 
-  float height;
-  if (cal2_calibrated) {
-    height = adcToHeight(adcValue, cal2_empty_adc, cal2_full_adc, SENSOR_MAX_HEIGHT);
-  } else {
-    float voltage_pin    = (adcValue / ADC_RESOLUTION) * ADC_VREF;
-    float voltage_sensor = voltage_pin / VOLTAGE_DIVIDER_FACTOR;
-    height = (voltage_sensor / SENSOR_MAX_VOLTAGE) * SENSOR_MAX_HEIGHT;
+  // Margen de seguridad para Tanque 2
+  if (height >= MAX_LEVEL_ALLOW) {
+    Serial.println("[ERROR] T2 Nivel critico " + String(height) + "mm. BOMBA APAGADA.");
+    setMotorPWM(0);
+    if (currentMode != MODE_MANUAL) {
+        currentMode = MODE_MANUAL;
+    }
   }
 
-  level2_buffer[filter_index] = height;
   // filter_index ya avanza en readWaterLevel1()
   float filtered = 0;
   for (int i = 0; i < FILTER_SIZE; i++) filtered += level2_buffer[i];
