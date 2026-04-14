@@ -265,22 +265,22 @@ class ControlsPage(QWidget):
         params_layout = QFormLayout()
         
         self.ref_initial = QDoubleSpinBox()
-        self.ref_initial.setRange(-100, 100)
-        self.ref_initial.setValue(0.5)
-        self.ref_initial.setSingleStep(0.1)
-        self.ref_initial.setDecimals(2)
+        self.ref_initial.setRange(0, 150)
+        self.ref_initial.setValue(0.0)
+        self.ref_initial.setSingleStep(5.0)
+        self.ref_initial.setDecimals(1)
         params_layout.addRow("Initial Value:", self.ref_initial)
         
         self.ref_final = QDoubleSpinBox()
-        self.ref_final.setRange(-100, 100)
-        self.ref_final.setValue(1.5)
-        self.ref_final.setSingleStep(0.1)
-        self.ref_final.setDecimals(2)
+        self.ref_final.setRange(0, 150)
+        self.ref_final.setValue(60.0)
+        self.ref_final.setSingleStep(5.0)
+        self.ref_final.setDecimals(1)
         params_layout.addRow("Final Value:", self.ref_final)
         
         self.ref_duration = QDoubleSpinBox()
-        self.ref_duration.setRange(0.1, 300)
-        self.ref_duration.setValue(10.0)
+        self.ref_duration.setRange(0.0, 300)
+        self.ref_duration.setValue(2.0)
         self.ref_duration.setSingleStep(1.0)
         self.ref_duration.setSuffix(" s")
         params_layout.addRow("Duration:", self.ref_duration)
@@ -361,7 +361,23 @@ class ControlsPage(QWidget):
         self.serial_worker.send_command(cmd)
     
     def start_control(self):
-        """Start automatic control."""
+        """Start automatic control ensuring a bumpless transfer."""
+        if self.app_state.current_telemetry:
+            telemetry = self.app_state.current_telemetry
+            mode = self.app_state.current_mode
+            
+            # Auto-populate the initial value from current sensor readings for a smooth transition
+            if mode in [ControlMode.CASCADE, ControlMode.AUTO_LEVEL1]:
+                self.ref_initial.setValue(telemetry.level_tank1)
+            elif mode == ControlMode.AUTO_LEVEL2:
+                self.ref_initial.setValue(telemetry.level_tank2)
+            elif mode == ControlMode.AUTO_FLOW:
+                self.ref_initial.setValue(telemetry.flow_rate)
+
+        # 1) Send the reference currently visible in the UI
+        self.apply_reference()
+        # 2) Let it process briefly (optional, usually serial buffer handles it)
+        # 3) Start the control
         cmd = CommandBuilder.start_control()
         self.serial_worker.send_command(cmd)
     

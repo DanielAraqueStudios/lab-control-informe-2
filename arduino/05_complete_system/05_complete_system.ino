@@ -583,6 +583,16 @@ void printMetrics() {
 // ============================================================================
 
 void setMotorPWM(int pwmValue) {
+  // ==========================================
+  // BLOQUEO DE EMERGENCIA (HARDWARE PANIC)
+  // Sobrescribe cualquier intento, automático o manual
+  // ==========================================
+  if (pwmValue > 0 && (waterLevel1 >= MAX_LEVEL_ALLOW || waterLevel2 >= MAX_LEVEL_ALLOW)) {
+    pwmValue = 0;
+    // Enviaremos el mensaje de error por serial solo cuando intenten pedir velocidad
+    Serial.println("[ERROR] HARDWARE PANIC: Nivel excede " + String(MAX_LEVEL_ALLOW) + "mm. BOMBA BLOQUEADA.");
+  }
+  
   if (pwmValue < PWM_MIN) pwmValue = PWM_MIN;
   if (pwmValue > PWM_MAX) pwmValue = PWM_MAX;
   
@@ -644,11 +654,9 @@ float readWaterLevel1() {
 
   // Margen de seguridad: Forzar apagado de bomba si se supera el nivel permitido
   if (height >= MAX_LEVEL_ALLOW) {
-    Serial.println("[ERROR] T1 Nivel critico " + String(height) + "mm. BOMBA APAGADA.");
-    setMotorPWM(0);
-    // Cambiamos a manual como protección (panic)  
-    if (currentMode != MODE_MANUAL) {
-      currentMode = MODE_MANUAL;
+    if (currentPWM > 0) {
+      Serial.println("[ERROR] T1 Nivel critico " + String(height) + "mm. BOMBA APAGADA.");
+      setMotorPWM(0); // Ahora setMotorPWM está fuertemente bloqueado
     }
   }
 
@@ -667,10 +675,9 @@ float readWaterLevel2() {
 
   // Margen de seguridad para Tanque 2
   if (height >= MAX_LEVEL_ALLOW) {
-    Serial.println("[ERROR] T2 Nivel critico " + String(height) + "mm. BOMBA APAGADA.");
-    setMotorPWM(0);
-    if (currentMode != MODE_MANUAL) {
-        currentMode = MODE_MANUAL;
+    if (currentPWM > 0) {
+      Serial.println("[ERROR] T2 Nivel critico " + String(height) + "mm. BOMBA APAGADA.");
+      setMotorPWM(0); // Bloqueo blindado en la función maestra
     }
   }
 
