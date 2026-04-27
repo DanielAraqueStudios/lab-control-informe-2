@@ -15,6 +15,32 @@
 
 ---
 
+## Estado Actual del Proyecto
+
+La implementación actual del repositorio combina:
+
+- Firmware ESP32-S3 en Arduino para una planta hidráulica de dos tanques.
+- Control de bomba DC de 12V mediante H-bridge y PWM LEDC.
+- Medición de flujo con sensor YF-S401 por interrupciones.
+- Medición de nivel con sensores ultrasónicos HC-SR04.
+- Interfaz de escritorio en Python/PyQt6 para conexión serial, comandos, dashboard, logs y pruebas.
+
+El sketch principal es:
+
+```text
+arduino/05_complete_system/05_complete_system.ino
+```
+
+El Sprint 6 contiene una prueba aislada de los sensores ultrasónicos antes de integrarlos al sistema principal:
+
+```text
+arduino/06_ultrasonic_sensors/06_ultrasonic_sensors.ino
+```
+
+> Nota: Las primeras etapas del proyecto usaban sensores analógicos SE045. Esa información se conserva como referencia histórica en algunos sprints, pero la arquitectura vigente usa HC-SR04 para nivel.
+
+---
+
 ## Objetivo General
 
 Controlar el flujo de agua de entrada a un sistema de dos tanques mediante la implementación de un controlador PID digital en microcontrolador ESP32-S3, sintonizado por el método de Ziegler-Nichols, con seguimiento de referencias tipo escalón, rampa y aceleración.
@@ -54,8 +80,8 @@ El sistema hidráulico implementado consta de un sistema de dos tanques intercon
 - **Microcontrolador:** ESP32-S3 DevKit (arquitectura Xtensa dual-core 240 MHz)
 - **Driver de potencia:** H-Bridge para control bidireccional de bomba
 - **Sensor de flujo:** YF-S401 (rango 0.3-6 L/min, salida digital por pulsos)
-- **Sensores de nivel:** 2x Water Level Sensor SE045 (uno por tanque)
-- **Comunicación:** UART/USB para monitoreo y programación
+- **Sensores de nivel:** 2x HC-SR04 ultrasónicos (uno por tanque)
+- **Comunicación:** UART/USB para monitoreo, comandos y dashboard Python
 - *Especificaciones de Hardware
 
 ### Lista de Componentes
@@ -76,7 +102,7 @@ El sistema hidráulico implementado consta de un sistema de dos tanques intercon
 | Componente | Modelo/Especificación | Cantidad | Función |
 |------------|----------------------|----------|---------|
 | Sensor de Flujo | **YF-S401** (0.3-6 L/min, hall effect) | 1 | Medición caudal entrada |
-| Sensor de Nivel | **Water Level Sensor SE045** (analógico) | 2 | Nivel Tanque 1 y Tanque 2 |
+| Sensor de Nivel | **HC-SR04** ultrasónico | 2 | Distancia al agua y nivel estimado en Tanque 1 y Tanque 2 |
 | Multímetro Digital | Resolución 0.1V | 1 | Verificación voltajes |
 | Osciloscopio Digital | 2+ canales, 50MHz+ | 1 | Análisis señales PWM/sensores |
 
@@ -100,11 +126,14 @@ El sistema hidráulico implementado consta de un sistema de dos tanques intercon
 | ESP32 Board Package | 3.0.0+ | Soporte ESP32-S3 en Arduino |
 | MATLAB/Simulink | R2020a+ | Simulación y análisis |
 | Serial Plotter/Monitor | Integrado Arduino | Visualización datos tiempo real |
-| Python (opcional) | 3.9+ con matplotlib | Análisis avanzado de datoariable)
-3. YF-S401 mide flujo de entrada (pulsos → L/min)
-4. SE045 sensores miden niveles en ambos tanques
-5. Controlador PID digital ajusta PWM según error de referencia
-6. Datos transmitidos a PC para monitoreo en tiempo real
+| Python | 3.10+ con PyQt6, pyserial y pyqtgraph | Interfaz de control, dashboard y logging |
+
+Flujo funcional actual:
+
+1. YF-S401 mide flujo de entrada (pulsos → L/min)
+2. HC-SR04 mide distancia al agua; el firmware convierte distancia a nivel en mm
+3. Controlador PID digital ajusta PWM según error de referencia
+4. Datos transmitidos a PC por USB/UART para monitoreo en tiempo real
 
 ---
 
@@ -135,14 +164,17 @@ El sistema hidráulico implementado consta de un sistema de dos tanques intercon
 - Calibración: 5880 pulsos/litro (verificar experimentalmente)
 - Rango operación: 0.3 - 6 L/min
 
-**Sensores de Nivel SE045 (x2):**
-- Instalación: Montaje vertical dentro de cada tanque
+**Sensores de Nivel HC-SR04 (x2):**
+- Instalación: Montaje superior apuntando hacia la superficie del agua.
 - Conexión:
-  - VCC → 5V ESP32
-  - GND → GND
-  - Analog Out → GPIO ADC (36-39 en ESP32-S3)
-- Rango: 0-40mm altura de agua
-- Salida: 0-4.5V proporcional a nivel
+  - VCC → 5V ESP32/VUSB
+  - GND → GND común
+  - TRIG Tank 1 → GPIO5
+  - ECHO Tank 1 → GPIO6, idealmente con divisor a 3.3V
+  - TRIG Tank 2 → GPIO8
+  - ECHO Tank 2 → GPIO9, idealmente con divisor a 3.3V
+- Medición: distancia sensor-superficie en mm.
+- Conversión usada en firmware: `nivel_mm = altura_tanque_mm - distancia_mm`.
 
 **Driver H-Bridge:**
 - Modelo: L298N o TB6612FNG
@@ -249,8 +281,10 @@ El sistema hidráulico implementado consta de un sistema de dos tanques intercon
 | PWM Motor (ENA) | GPIO 17 | Output PWM | Canal LEDC 0, 10kHz, 8-bit |
 | **Sensores** ||||
 | YF-S401 Signal | GPIO 4 | Input (INT) | Interrupción flanco ascendente |
-| SE045 Tank 1 | GPIO 5 (ADC1_CH4) | Input Analog | ADC 12-bit, divisor resistivo |
-| SE045 Tank 2 | GPIO 6 (ADC1_CH5) | Input Analog | ADC 12-bit, divisor resistivo |
+| HC-SR04 Tank 1 TRIG | GPIO 5 | Output Digital | Pulso de disparo ultrasónico |
+| HC-SR04 Tank 1 ECHO | GPIO 6 | Input Digital | Pulso de retorno, usar divisor a 3.3V |
+| HC-SR04 Tank 2 TRIG | GPIO 8 | Output Digital | Pulso de disparo ultrasónico |
+| HC-SR04 Tank 2 ECHO | GPIO 9 | Input Digital | Pulso de retorno, usar divisor a 3.3V |
 | **Indicadores** ||||
 | LED Status | GPIO 7 | Output | Indicador estado sistema |
 | **Comunicación** ||||
@@ -258,8 +292,6 @@ El sistema hidráulico implementado consta de un sistema de dos tanques intercon
 | UART RX | USB | UART0_RX | Serial debug/data vía USB |
 | **Pines Disponibles para Expansión** ||||
 | Reserva 1 | GPIO 3 (ADC1_CH2) | Multipropósito | ADC/Digital I/O |
-| Reserva 2 | GPIO 8 | Multipropósito | Digital I/O |
-| Reserva 3 | GPIO 9 | Multipropósito | Digital I/O |
 | Reserva 4 | GPIO 10 | Multipropósito | Digital I/O |
 | Reserva 5 | GPIO 11 | Multipropósito | Digital I/O |
 | Reserva 6 | GPIO 12 | Multipropósito | Digital I/O |
@@ -281,7 +313,7 @@ El proyecto se divide en módulos incrementales para facilitar desarrollo y prue
 **Sprint 2: Lectura Sensores (`02_sensor_reading.ino`)**
 - Lectura YF-S401 con interrupciones
 - Cálculo de flujo en L/min
-- Lectura SE045 (ADC) para niveles
+- Lectura SE045 (ADC) para niveles, mantenida como etapa histórica
 - Calibración y filtrado
 - Visualización Serial Plotter
 
@@ -304,6 +336,19 @@ El proyecto se divide en módulos incrementales para facilitar desarrollo y prue
 - Interfaz Serial avanzada
 - Registro de datos (SD opcional)
 - Monitoreo en tiempo real
+- Integración vigente de sensores ultrasónicos para nivel
+
+**Sprint 6: Sensores Ultrasónicos (`06_ultrasonic_sensors.ino`)**
+- Prueba aislada de dos HC-SR04
+- Medición de distancia en mm por `pulseIn`
+- Validación de pines GPIO5/GPIO6 y GPIO8/GPIO9
+- Salida compatible con Serial Plotter
+
+**Sprint 7: Control de Servomotores (`07_servo_control.ino`)**
+- Prueba aislada de dos servomotores
+- Servo 1 en GPIO10 y Servo 2 en GPIO11
+- Comandos UART para ángulo, izquierda/derecha y giro continuo CW/CCW
+- Base para futura pestaña de control en la interfaz Python
 
 ---
 
@@ -350,48 +395,34 @@ void calculateFlow() {
 3. Calcular: `Factor_K_real = pulsos_totales / volumen_medido (L)`
 4. Actualizar constante en código
 
-### Calibración de Sensores SE045
+### Medición de Nivel con HC-SR04
 
-**Principio de Operación:**
-Sensor resistivo analógico que varía voltaje de salida según altura de agua.
+**Principio de operación:**
+El HC-SR04 mide la distancia entre el sensor y la superficie del agua usando tiempo de vuelo ultrasónico. El firmware convierte esa distancia en altura de agua usando la altura física de cada tanque.
 
-**Características:**
-- Rango de medición: 0-40 mm (altura agua)
-- Voltaje salida: 0V (seco) a 4.5V (sumergido completo)
-- Lectura ADC ESP32: 0-4095 (12 bits)
+**Características usadas en el firmware actual:**
+- Tanque 1: altura configurada de `150 mm`.
+- Tanque 2: altura configurada de `160 mm`.
+- Nivel máximo permitido por seguridad: `110 mm`.
+- Timeout de eco: `30000 us`.
 
-**Ecuación de Conversión:**
+**Ecuación de conversión:**
 ```cpp
-const int ADC_RESOLUTION = 4095;  // 12-bit ADC
-const float ADC_VREF = 3.3;        // Voltaje referencia ESP32
-const float SENSOR_MAX_VOLTAGE = 4.5;
-const float SENSOR_MAX_HEIGHT_MM = 40.0;
-
-// Factor divisor resistivo: R2/(R1+R2) = 22k/(10k+22k) = 0.6875
-const float VOLTAGE_DIVIDER_FACTOR = 0.6875;
-
-float readWaterLevel(int adcPin) {
-    // adcPin debe ser GPIO5 (Tank1) o GPIO6 (Tank2)
-    int adcValue = analogRead(adcPin);
-    
-    // Convertir ADC a voltaje en el pin (después del divisor)
-    float voltage_pin = (adcValue / (float)ADC_RESOLUTION) * ADC_VREF;
-    
-    // Compensar divisor resistivo para obtener voltaje real del sensor
-    float voltage_sensor = voltage_pin / VOLTAGE_DIVIDER_FACTOR;
-    
-    // Convertir voltaje del sensor a altura (mm)
-    float height_mm = (voltage_sensor / SENSOR_MAX_VOLTAGE) * SENSOR_MAX_HEIGHT_MM;
-    
-    return height_mm;
-}
+distancia_mm = (duracion_echo_us * 0.343) / 2.0;
+nivel_mm = altura_tanque_mm - distancia_mm;
 ```
 
-**Calibración Experimental:**
-1. Sumergir sensor a alturas conocidas (0, 10, 20, 30, 40 mm)
-2. Registrar valores ADC correspondientes
-3. Realizar regresión lineal: `ADC = m × altura + b`
-4. Actualizar ecuación en código
+**Conexión recomendada:**
+- VCC del HC-SR04 a 5V.
+- GND a tierra común del sistema.
+- TRIG directo a GPIO del ESP32-S3.
+- ECHO con divisor resistivo para bajar de 5V a 3.3V antes de entrar al ESP32-S3.
+
+**Validación experimental:**
+1. Cargar `arduino/06_ultrasonic_sensors/06_ultrasonic_sensors.ino`.
+2. Abrir Serial Plotter a `115200`.
+3. Confirmar que `Distancia_T1_mm` y `Distancia_T2_mm` cambian al mover la superficie/objeto frente a cada sensor.
+4. Integrar o comparar con el sketch principal `05_complete_system.ino`.
 
 ### Algoritmo PID Digital
 
@@ -477,8 +508,10 @@ const int MOTOR_IN1 = 15;        // H-Bridge dirección 1
 const int MOTOR_IN2 = 16;        // H-Bridge dirección 2
 const int MOTOR_PWM_PIN = 17;    // H-Bridge velocidad (ENA)
 const int FLOW_SENSOR_PIN = 4;   // YF-S401 pulsos
-const int LEVEL1_PIN = 5;        // SE045 Tank 1 (ADC)
-const int LEVEL2_PIN = 6;        // SE045 Tank 2 (ADC)
+const int TRIG_PIN_1 = 5;        // HC-SR04 Tank 1 trigger
+const int ECHO_PIN_1 = 6;        // HC-SR04 Tank 1 echo
+const int TRIG_PIN_2 = 8;        // HC-SR04 Tank 2 trigger
+const int ECHO_PIN_2 = 9;        // HC-SR04 Tank 2 echo
 const int LED_STATUS_PIN = 7;    // LED indicador
 
 // Parámetros PWM (ESP32 Core 3.0+)
@@ -547,39 +580,22 @@ lab-control-informe-2/
 │   ├── 04_pid_controller/
 │   │   ├── 04_pid_controller.ino    # Sprint 4: Controlador PID
 │   │   └── README_SPRINT4.md         # Guía Sprint 4
-│   └── 05_complete_system/
-│       ├── 05_complete_system.ino   # Sprint 5: Sistema completo
-│       └── README_SPRINT5.md         # Guía Sprint 5
+│   ├── 05_complete_system/
+│   │   ├── 05_complete_system.ino   # Sprint 5: Sistema completo
+│   │   └── README_SPRINT5.md         # Guía Sprint 5
+│   ├── 06_ultrasonic_sensors/
+│   │   ├── 06_ultrasonic_sensors.ino # Sprint 6: Prueba HC-SR04
+│   │   └── README_SPRINT6.md         # Guía Sprint 6
+│   └── 07_servo_control/
+│       ├── 07_servo_control.ino      # Sprint 7: Control dual de servos
+│       └── README_SPRINT7.md         # Guía Sprint 7
 │
-├── matlab/                            # Scripts MATLAB
-│   ├── identificacion_sistema.m       # Identificación experimental
-│   ├── sintonia_ziegler_nichols.m     # Cálculo parámetros PID
-│   ├── simulacion_lazo_cerrado.m      # Simulación control
-│   └── analisis_datos.m               # Procesamiento datos
-│
-├── docs/                              # Documentación adicional
-│   ├── datasheets/                    # Hojas de datos componentes
-│   │   ├── ESP32-S3_datasheet.pdf
-│   │   ├── YF-S401_specs.pdf
-│   │   ├── SE045_manual.pdf
-│   │   └── L298N_datasheet.pdf
-│   ├── esquematicos/                  # Diagramas circuitos
-│   │   ├── esquema_conexiones.png
-│   │   ├── pcb_layout.png
-│   │   └── diagrama_bloques.svg
-│   └── calibracion/                   # Procedimientos calibración
-│       ├── calibracion_YFS401.md
-│       └── calibracion_SE045.md
-│
-├── data/                              # Datos experimentales
-│   ├── raw/                           # Datos crudos (.csv)
-│   ├── processed/                     # Datos procesados
-│   └── plots/                         # Gráficas generadas
-│
-└── images/                            # Imágenes del sistema
-    ├── sistema_montado.jpg
-    ├── circuito_control.jpg
-    └── resultados_graficos.png
+├── python_app/                        # Interfaz de escritorio PyQt6
+│   ├── main.py                        # Punto de entrada de la UI
+│   ├── requirements.txt               # Dependencias Python
+│   ├── core/                          # Serial, protocolo y modelos
+│   ├── ui/                            # Pantallas y componentes
+│   └── viewmodels/                    # Estado de aplicación
 ```
 
 ---
@@ -621,8 +637,8 @@ cd lab-control-informe-2
 - [ ] Fuente 12V desconectada inicialmente
 - [ ] Motor conectado a salidas H-Bridge (OUT1, OUT2)
 - [ ] YF-S401: VCC→5V, GND→GND, Signal→GPIO4
-- [ ] SE045 Tank1: Divisor resistivo (10kΩ/22kΩ) → GPIO5
-- [ ] SE045 Tank2: Divisor resistivo (10kΩ/22kΩ) → GPIO6
+- [ ] HC-SR04 Tank1: TRIG→GPIO5, ECHO→GPIO6 con divisor a 3.3V
+- [ ] HC-SR04 Tank2: TRIG→GPIO8, ECHO→GPIO9 con divisor a 3.3V
 - [ ] LED Status conectado a GPIO7 con resistencia 220Ω
 - [ ] No hay cortocircuitos visibles
 - [ ] Polaridades verificadas
@@ -642,17 +658,17 @@ cd lab-control-informe-2
 
 ⚠️ **CRÍTICO - Evitar daño permanente al ESP32:**
 
-1. **Voltajes de entrada ADC:**
-   - Máximo absoluto: **3.3V** (3.6V destruye el ADC)
-   - Los sensores SE045 generan hasta 4.5V → **USAR DIVISOR RESISTIVO**
+1. **Voltajes de entrada GPIO:**
+   - Máximo recomendado en entradas ESP32-S3: **3.3V**
+   - El pin ECHO del HC-SR04 estándar entrega pulsos de 5V → **USAR DIVISOR RESISTIVO**
    
    ```
-   Sensor SE045 (0-4.5V) → [R1=10kΩ] → GPIO5/GPIO6 (ADC) ← [R2=22kΩ] → GND
-   Voltaje ADC = 4.5V × (22kΩ/(10kΩ+22kΩ)) = 3.09V ✅ Seguro (<3.3V)
+   HC-SR04 ECHO (5V) → [R1=10kΩ] → GPIO6/GPIO9 ← [R2=18kΩ] → GND
+   Voltaje GPIO = 5V × (18kΩ/(10kΩ+18kΩ)) = 3.21V aprox.
    
    Conexiones físicas:
-   - SE045_Tank1 Signal → 10kΩ → GPIO5 → 22kΩ → GND
-   - SE045_Tank2 Signal → 10kΩ → GPIO6 → 22kΩ → GND
+   - HC-SR04_Tank1 ECHO → divisor → GPIO6
+   - HC-SR04_Tank2 ECHO → divisor → GPIO9
    ```
 
 2. **Corriente en pines GPIO:**
@@ -774,11 +790,12 @@ Solución:
 - [ ] Flujo muy bajo < 0.3 L/min → sensor no detecta
 - [ ] Limpiar impeller (puede estar bloqueado)
 
-**Sensores SE045 dan lectura errónea:**
-- [ ] Limpiar superficie del sensor (sedimentos)
-- [ ] Verificar conexión a pin ADC correcto
-- [ ] Usar divisor resistivo si voltaje > 3.3V
-- [ ] Calibrar con alturas conocidas
+**Sensores HC-SR04 dan lectura errónea:**
+- [ ] Verificar VCC a 5V y GND común con el ESP32-S3
+- [ ] Verificar TRIG/ECHO: Tank1 GPIO5/GPIO6, Tank2 GPIO8/GPIO9
+- [ ] Usar divisor resistivo en ECHO para proteger el GPIO
+- [ ] Evitar turbulencia, espuma o ángulos inclinados sobre la superficie del agua
+- [ ] Separar lecturas de ambos sensores para evitar ecos cruzados
 
 **ESP32 se resetea continuamente:**
 - [ ] Corriente motor excede capacidad fuente → usar fuente mayor amperaje
@@ -1149,8 +1166,8 @@ u(t) = Vp(t) + Vi(t) + Vd(t)
 
 ---
 
-**Última actualización:** Febrero 28, 2026  
-**Versión:** 3.0 - Implementación ESP32-S3  
+**Última actualización:** Abril 27, 2026
+**Versión:** 3.2 - Integración HC-SR04 y app Python
 **Estado:** En desarrollo - Semestre 2026-1
 
 ---
@@ -1246,34 +1263,42 @@ Este proyecto es desarrollado con fines académicos para el curso de Control Lin
 | 192 | 75% | 9V | 1.4 L/min |
 | 255 | 100% | 12V | 2.0 L/min |
 
-**Nivel de Agua a ADC (SE045 con divisor 10k/22k):**
+**Nivel de Agua con HC-SR04:**
 
-| Nivel (mm) | Voltaje Sensor | Voltaje ADC | Valor ADC (12-bit) |
-|------------|---------------|-------------|-------------------|
-| 0 | 0V | 0V | 0 |
-| 10 | 1.125V | 0.77V | ~960 |
-| 20 | 2.25V | 1.54V | ~1920 |
-| 30 | 3.375V | 2.32V | ~2880 |
-| 40 | 4.5V | 3.09V | ~3840 |
+El sensor entrega distancia desde el transductor hasta la superficie. El firmware calcula:
+
+```text
+nivel_mm = altura_tanque_mm - distancia_medida_mm
+```
+
+| Tanque | Altura configurada | Nivel calculado si distancia = 100 mm |
+|--------|--------------------|----------------------------------------|
+| Tank 1 | 150 mm | 50 mm |
+| Tank 2 | 160 mm | 60 mm |
+
+El sketch principal bloquea la bomba si un nivel llega a `110 mm` o más.
 
 ### B. Comandos Serial Monitor Útiles
 
 ```
 Formato: comando,valor
 
-Ejemplos:
-SETPWM,128      → Establecer PWM a 128 (50%)
-SETSP,1.5       → Establecer setpoint a 1.5 L/min
-SETKP,10.5      → Establecer Kp = 10.5
-SETKI,2.3       → Establecer Ki = 2.3
-SETKD,1.8       → Establecer Kd = 1.8
-STARTP          → Iniciar control PID
-STOPP           → Detener control PID
-RESET           → Reiniciar ESP32
-CALIB           → Modo calibración sensores
-STATUS          → Mostrar estado del sistema
-DATA            → Streaming continuo de datos
-HELP            → Mostrar comandos disponibles
+Ejemplos actuales del sketch `05_complete_system.ino`:
+SETPWM,128              → Establecer PWM manual a 128 (solo modo MANUAL)
+SETMODE,AUTO_FLOW       → Seleccionar control automático de flujo
+SETMODE,AUTO_LEVEL1     → Seleccionar control de nivel del Tanque 1
+SETMODE,AUTO_LEVEL2     → Seleccionar control de nivel del Tanque 2
+SETMODE,CASCADE         → Seleccionar control cascada Nivel→Flujo→Motor
+SETREF,STEP,0.5,1.5,10  → Referencia tipo escalón
+SETREF,RAMP,10,30,30    → Referencia tipo rampa
+SETPID1,30,5,3          → Ajustar PID del Tanque 1
+SETPID2,30,5,3          → Ajustar PID del Tanque 2
+STARTCTRL               → Iniciar control automático
+STOPCTRL                → Detener control y bomba
+DATALOG                 → Activar/desactivar telemetría CSV
+METRICS                 → Iniciar/mostrar métricas de desempeño
+STATUS                  → Mostrar estado del sistema
+HELP                    → Mostrar comandos disponibles
 ```
 
 ### C. Checklist de Entregables
@@ -1298,6 +1323,16 @@ HELP            → Mostrar comandos disponibles
 ---
 
 ## Changelog
+
+### [3.2] - 2026-04-27
+#### Modificado
+- README principal actualizado para reflejar la arquitectura vigente.
+- Sensores de nivel documentados como HC-SR04 en lugar de SE045 para el sistema actual.
+- Tabla de pines actualizada: Tank1 TRIG/ECHO en GPIO5/GPIO6 y Tank2 TRIG/ECHO en GPIO8/GPIO9.
+- Agregado Sprint 6 (`06_ultrasonic_sensors.ino`) como prueba aislada de medición ultrasónica.
+- Agregado Sprint 7 (`07_servo_control.ino`) para control dual de servomotores en GPIO10/GPIO11.
+- Agregada referencia a la interfaz Python/PyQt6 (`python_app`) y al flujo UART/CSV.
+- Comandos seriales actualizados para `05_complete_system.ino`.
 
 ### [3.1] - 2026-02-28
 #### Agregado
