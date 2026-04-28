@@ -76,8 +76,8 @@ Manual valve commands:
 
 | Command | Meaning |
 |---------|---------|
-| `S1,<170-180>` | Set Tank 1 valve angle manually |
-| `S2,<170-180>` | Set Tank 2 valve angle manually |
+| `S1,<0-180>` | Set Tank 1 valve angle manually |
+| `S2,<0-180>` | Set Tank 2 valve angle manually |
 | `V1,OPEN` | Open Tank 1 valve to 170 degrees |
 | `V1,CLOSE` | Close Tank 1 valve to 180 degrees |
 | `V2,OPEN` | Open Tank 2 valve to 170 degrees |
@@ -117,8 +117,10 @@ The valve controller changes valve position. The pump must still be running with
 Manual valve test:
 
 ```text
+S1,90
 S1,170
 S1,180
+S2,90
 S2,170
 S2,180
 ```

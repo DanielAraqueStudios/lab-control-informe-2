@@ -749,6 +749,10 @@ int normalizeValveAngle(int angle) {
   return constrain(angle, VALVE_FULL_OPEN_ANGLE, VALVE_CLOSED_ANGLE);
 }
 
+int normalizeServoAngle(int angle) {
+  return constrain(angle, 0, 180);
+}
+
 int calculateValveAngle(float targetLevel, float actualLevel) {
   float error = targetLevel - actualLevel;
 
@@ -762,7 +766,7 @@ int calculateValveAngle(float targetLevel, float actualLevel) {
 }
 
 void setValveAngle(int tank, int angle) {
-  angle = normalizeValveAngle(angle);
+  angle = normalizeServoAngle(angle);
 
   if (tank == 1) {
     bool changed = (tank1ValveAngle != angle);
@@ -1418,8 +1422,8 @@ void printHelp() {
   Serial.println("  SETLEVEL2,<mm>        Set Tank 2 height target");
   Serial.println("  LEVELCTRL,ON          Enable automatic valve height control");
   Serial.println("  LEVELCTRL,OFF         Disable valve control and close valves");
-  Serial.println("  S1,<170-180>          Manual Tank 1 valve angle");
-  Serial.println("  S2,<170-180>          Manual Tank 2 valve angle");
+  Serial.println("  S1,<0-180>            Manual Tank 1 valve angle");
+  Serial.println("  S2,<0-180>            Manual Tank 2 valve angle");
   Serial.println("  V1,OPEN / V1,CLOSE    Manual Tank 1 valve");
   Serial.println("  V2,OPEN / V2,CLOSE    Manual Tank 2 valve");
   Serial.println("  VALVES,OPEN/CLOSE     Manual both valves");
