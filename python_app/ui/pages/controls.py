@@ -5,7 +5,7 @@ import re
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
                               QComboBox, QGroupBox, QFormLayout, QDoubleSpinBox,
                               QSlider, QSpinBox, QRadioButton, QButtonGroup, QTabWidget,
-                              QFrame, QScrollArea)
+                              QFrame, QScrollArea, QGridLayout)
 from PyQt6.QtCore import Qt
 from core import CommandBuilder, ControlMode
 from viewmodels import AppState
@@ -27,6 +27,9 @@ class ControlsPage(QWidget):
         self.cal_t2_full_adc:  float = 4095.0
         self._cur_t1_adc: float = 0.0
         self._cur_t2_adc: float = 0.0
+        self.servo_angle_sliders = {}
+        self.servo_angle_spins = {}
+        self.servo_speed_spins = {}
 
         # Main layout
         layout = QVBoxLayout(self)
@@ -55,6 +58,9 @@ class ControlsPage(QWidget):
 
         # Tab 5: Calibration
         tabs.addTab(self.create_calibration_tab(), "🔧 Calibration")
+
+        # Tab 6: Servo control
+        tabs.addTab(self.create_servo_control_tab(), "Servo Control")
 
         # Connect status messages to calibration live display
         self.serial_worker.status_received.connect(self._parse_cal_message)
@@ -433,6 +439,170 @@ class ControlsPage(QWidget):
         """Update UI based on reference type."""
         # All types use the same parameters for now
         pass
+
+    # =========================================================================
+    # SERVO CONTROL TAB
+    # =========================================================================
+
+    def create_servo_control_tab(self) -> QWidget:
+        """Create controls for Sprint 7 dual-servo firmware."""
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        inner = QWidget()
+        layout = QVBoxLayout(inner)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(16)
+        scroll.setWidget(inner)
+
+        info = QLabel("Upload Sprint 7 firmware before using these controls: arduino/07_servo_control/07_servo_control.ino")
+        info.setObjectName("caption")
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        layout.addWidget(self._create_servo_group(1, "Servo 1 - GPIO10"))
+        layout.addWidget(self._create_servo_group(2, "Servo 2 - GPIO11"))
+
+        both_group = QGroupBox("Both Servos")
+        both_layout = QHBoxLayout(both_group)
+        both_layout.addWidget(QLabel("Send current angles:"))
+        both_btn = QPushButton("Send Both")
+        both_btn.clicked.connect(self.send_both_servos)
+        both_layout.addWidget(both_btn)
+        both_layout.addStretch()
+        layout.addWidget(both_group)
+
+        layout.addStretch()
+        return scroll
+
+    def _create_servo_group(self, servo: int, title: str) -> QGroupBox:
+        group = QGroupBox(title)
+        layout = QVBoxLayout(group)
+        layout.setSpacing(12)
+
+        angle_row = QHBoxLayout()
+        angle_row.addWidget(QLabel("Angle:"))
+
+        slider = QSlider(Qt.Orientation.Horizontal)
+        slider.setRange(0, 180)
+        slider.setValue(90)
+        slider.setTickInterval(15)
+        slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        angle_row.addWidget(slider, stretch=1)
+
+        spin = QSpinBox()
+        spin.setRange(0, 180)
+        spin.setValue(90)
+        spin.setSuffix("°")
+        spin.setFixedWidth(80)
+        angle_row.addWidget(spin)
+
+        send_btn = QPushButton("Send Angle")
+        send_btn.clicked.connect(lambda checked=False, s=servo: self.send_servo_angle(s))
+        angle_row.addWidget(send_btn)
+        layout.addLayout(angle_row)
+
+        slider.valueChanged.connect(lambda value, s=servo: self._on_servo_slider_changed(s, value))
+        spin.valueChanged.connect(lambda value, s=servo: self._on_servo_spin_changed(s, value))
+        self.servo_angle_sliders[servo] = slider
+        self.servo_angle_spins[servo] = spin
+
+        position_grid = QGridLayout()
+        for col, (label, direction) in enumerate([
+            ("Left", "LEFT"),
+            ("Center", "CENTER"),
+            ("Right", "RIGHT"),
+        ]):
+            btn = QPushButton(label)
+            btn.clicked.connect(lambda checked=False, s=servo, d=direction: self.send_servo_direction(s, d))
+            position_grid.addWidget(btn, 0, col)
+
+        step_left = QPushButton("Step Left")
+        step_left.setObjectName("secondaryButton")
+        step_left.clicked.connect(lambda checked=False, s=servo: self.send_servo_step(s, "LEFT"))
+        position_grid.addWidget(step_left, 1, 0)
+
+        step_right = QPushButton("Step Right")
+        step_right.setObjectName("secondaryButton")
+        step_right.clicked.connect(lambda checked=False, s=servo: self.send_servo_step(s, "RIGHT"))
+        position_grid.addWidget(step_right, 1, 2)
+        layout.addLayout(position_grid)
+
+        continuous_row = QHBoxLayout()
+        continuous_row.addWidget(QLabel("Continuous speed:"))
+        speed_spin = QSpinBox()
+        speed_spin.setRange(0, 100)
+        speed_spin.setValue(60)
+        speed_spin.setSuffix("%")
+        continuous_row.addWidget(speed_spin)
+        self.servo_speed_spins[servo] = speed_spin
+
+        cw_btn = QPushButton("CW")
+        cw_btn.clicked.connect(lambda checked=False, s=servo: self.send_servo_continuous(s, "CW"))
+        continuous_row.addWidget(cw_btn)
+
+        ccw_btn = QPushButton("CCW")
+        ccw_btn.clicked.connect(lambda checked=False, s=servo: self.send_servo_continuous(s, "CCW"))
+        continuous_row.addWidget(ccw_btn)
+
+        stop_btn = QPushButton("Stop")
+        stop_btn.setObjectName("secondaryButton")
+        stop_btn.clicked.connect(lambda checked=False, s=servo: self.send_servo_stop(s))
+        continuous_row.addWidget(stop_btn)
+
+        disable_btn = QPushButton("Disable PWM")
+        disable_btn.setObjectName("secondaryButton")
+        disable_btn.clicked.connect(lambda checked=False, s=servo: self.send_servo_disable(s))
+        continuous_row.addWidget(disable_btn)
+        continuous_row.addStretch()
+        layout.addLayout(continuous_row)
+
+        return group
+
+    def _on_servo_slider_changed(self, servo: int, value: int):
+        spin = self.servo_angle_spins[servo]
+        spin.blockSignals(True)
+        spin.setValue(value)
+        spin.blockSignals(False)
+
+    def _on_servo_spin_changed(self, servo: int, value: int):
+        slider = self.servo_angle_sliders[servo]
+        slider.blockSignals(True)
+        slider.setValue(value)
+        slider.blockSignals(False)
+
+    def send_servo_angle(self, servo: int):
+        angle = self.servo_angle_spins[servo].value()
+        self.serial_worker.send_command(CommandBuilder.servo_angle(servo, angle))
+
+    def send_both_servos(self):
+        angle1 = self.servo_angle_spins[1].value()
+        angle2 = self.servo_angle_spins[2].value()
+        self.serial_worker.send_command(CommandBuilder.servo_both(angle1, angle2))
+
+    def send_servo_direction(self, servo: int, direction: str):
+        if direction == "LEFT":
+            self.servo_angle_spins[servo].setValue(45)
+        elif direction == "CENTER":
+            self.servo_angle_spins[servo].setValue(90)
+        elif direction == "RIGHT":
+            self.servo_angle_spins[servo].setValue(135)
+        self.serial_worker.send_command(CommandBuilder.servo_direction(servo, direction))
+
+    def send_servo_step(self, servo: int, direction: str):
+        current = self.servo_angle_spins[servo].value()
+        delta = -10 if direction == "LEFT" else 10
+        self.servo_angle_spins[servo].setValue(max(0, min(180, current + delta)))
+        self.serial_worker.send_command(CommandBuilder.servo_step(servo, direction))
+
+    def send_servo_continuous(self, servo: int, direction: str):
+        speed = self.servo_speed_spins[servo].value()
+        self.serial_worker.send_command(CommandBuilder.servo_continuous(servo, direction, speed))
+
+    def send_servo_stop(self, servo: int):
+        self.serial_worker.send_command(CommandBuilder.servo_stop(servo))
+
+    def send_servo_disable(self, servo: int):
+        self.serial_worker.send_command(CommandBuilder.servo_disable(servo))
 
     # =========================================================================
     # CALIBRATION TAB

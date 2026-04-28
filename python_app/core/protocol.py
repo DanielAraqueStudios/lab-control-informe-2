@@ -10,7 +10,7 @@ class ProtocolParser:
     """Parse incoming serial data from ESP32-S3."""
     
     # Regex patterns for different message types
-    STATUS_PATTERN = re.compile(r'\[(MODE|CTRL|PID|METRICS|ERROR|INFO|CMD|LOG|OK|READY|STEP|EXP)\]\s*(.+)')
+    STATUS_PATTERN = re.compile(r'\[(MODE|CTRL|PID|METRICS|ERROR|INFO|CMD|LOG|OK|READY|STEP|EXP|CAL|SERVO1|SERVO2|VALVE|LEVEL|HEIGHT)\]\s*(.+)')
     CSV_HEADER_PATTERN = re.compile(r'^Time_s,Mode,RefType')
     METRICS_OVERSHOOT = re.compile(r'Overshoot.*?:\s*([\d.]+)%')
     METRICS_RISE = re.compile(r'Rise Time.*?:\s*([\d.]+)\s*s')
@@ -223,6 +223,86 @@ class CommandBuilder:
     def get_calibration() -> str:
         """Request current calibration values from Arduino."""
         return "GETCAL\n"
+
+    @staticmethod
+    def servo_angle(servo: int, angle: int) -> str:
+        """Set a positional servo angle."""
+        servo = 1 if int(servo) == 1 else 2
+        angle = max(0, min(180, int(angle)))
+        return f"S{servo},{angle}\n"
+
+    @staticmethod
+    def servo_both(angle1: int, angle2: int) -> str:
+        """Set both positional servo angles."""
+        angle1 = max(0, min(180, int(angle1)))
+        angle2 = max(0, min(180, int(angle2)))
+        return f"BOTH,{angle1},{angle2}\n"
+
+    @staticmethod
+    def servo_direction(servo: int, direction: str) -> str:
+        """Move servo to LEFT, CENTER, or RIGHT position."""
+        servo = 1 if int(servo) == 1 else 2
+        direction = direction.upper()
+        if direction not in {"LEFT", "CENTER", "RIGHT"}:
+            direction = "CENTER"
+        return f"DIR,{servo},{direction}\n"
+
+    @staticmethod
+    def servo_step(servo: int, direction: str) -> str:
+        """Step servo LEFT or RIGHT."""
+        servo = 1 if int(servo) == 1 else 2
+        direction = direction.upper()
+        if direction not in {"LEFT", "RIGHT"}:
+            direction = "RIGHT"
+        return f"STEP,{servo},{direction}\n"
+
+    @staticmethod
+    def servo_continuous(servo: int, direction: str, speed: int) -> str:
+        """Run continuous-rotation servo clockwise/counterclockwise."""
+        servo = 1 if int(servo) == 1 else 2
+        direction = direction.upper()
+        if direction not in {"CW", "CCW"}:
+            direction = "CW"
+        speed = max(0, min(100, int(speed)))
+        return f"CR,{servo},{direction},{speed}\n"
+
+    @staticmethod
+    def servo_stop(servo: int) -> str:
+        """Send neutral pulse to stop a continuous-rotation servo."""
+        servo = 1 if int(servo) == 1 else 2
+        return f"STOP,{servo}\n"
+
+    @staticmethod
+    def servo_disable(servo: int) -> str:
+        """Disable servo PWM output."""
+        servo = 1 if int(servo) == 1 else 2
+        return f"DISABLE,{servo}\n"
+
+    @staticmethod
+    def set_level_target(tank: int, height_mm: float) -> str:
+        """Set Sprint 09 ultrasonic height target for a tank."""
+        tank = 1 if int(tank) == 1 else 2
+        height_mm = max(0.0, float(height_mm))
+        return f"SETLEVEL{tank},{height_mm:.1f}\n"
+
+    @staticmethod
+    def level_control(enabled: bool) -> str:
+        """Enable or disable Sprint 09 automatic servo valve height control."""
+        return "LEVELCTRL,ON\n" if enabled else "LEVELCTRL,OFF\n"
+
+    @staticmethod
+    def valve_status() -> str:
+        """Request Sprint 09 servo valve height-control status."""
+        return "VALVESTATUS\n"
+
+    @staticmethod
+    def valve_command(tank: int, action: str) -> str:
+        """Open or close a Sprint 09 tank valve."""
+        tank = 1 if int(tank) == 1 else 2
+        action = action.upper()
+        if action not in {"OPEN", "CLOSE"}:
+            action = "CLOSE"
+        return f"V{tank},{action}\n"
 
     @staticmethod
     def help_command() -> str:

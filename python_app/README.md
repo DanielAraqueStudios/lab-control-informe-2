@@ -117,6 +117,29 @@ Calibration tab implements test + ADC calibration workflow:
   - `SETCAL,2,<empty>,<full>`
 - Read active calibration with `GETCAL`
 
+### 5.6 Servo Control
+
+Servo Control sends commands for Sprint 7 firmware:
+
+- Angle sliders/buttons:
+  - `S1,<angle>`
+  - `S2,<angle>`
+  - `BOTH,<angle1>,<angle2>`
+- Positional direction buttons:
+  - `DIR,<servo>,LEFT`
+  - `DIR,<servo>,CENTER`
+  - `DIR,<servo>,RIGHT`
+- Increment buttons:
+  - `STEP,<servo>,LEFT`
+  - `STEP,<servo>,RIGHT`
+- Continuous rotation controls:
+  - `CR,<servo>,CW,<speed>`
+  - `CR,<servo>,CCW,<speed>`
+  - `STOP,<servo>`
+  - `DISABLE,<servo>`
+
+Upload `arduino/07_servo_control/07_servo_control.ino` when using this tab.
+
 ## 6. Dashboard Page
 
 Live visualization:
@@ -188,6 +211,14 @@ Main commands sent by the interface:
 - `CALSTOP`
 - `SETCAL,<tank>,<empty>,<full>`
 - `GETCAL`
+- `S1,<angle>`
+- `S2,<angle>`
+- `BOTH,<angle1>,<angle2>`
+- `DIR,<servo>,<LEFT|CENTER|RIGHT>`
+- `STEP,<servo>,<LEFT|RIGHT>`
+- `CR,<servo>,<CW|CCW>,<speed>`
+- `STOP,<servo>`
+- `DISABLE,<servo>`
 
 ## 11. Troubleshooting
 

@@ -6,12 +6,17 @@ import sys
 import os
 from pathlib import Path
 
-from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+# Make the app importable when launched from the repo root, from python_app/,
+# or directly from an IDE run button.
+APP_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = APP_DIR.parent
+for path in (APP_DIR, PROJECT_ROOT):
+    path_str = str(path)
+    if path_str not in sys.path:
+        sys.path.insert(0, path_str)
 
-# Allow imports from python_app/ root
-sys.path.insert(0, str(Path(__file__).parent))
+from PyQt6.QtWidgets import QApplication
+from PyQt6.QtGui import QFont
 
 from core.serial_worker import SerialWorker
 from viewmodels.app_state import AppState
@@ -20,7 +25,7 @@ from ui.main_window import MainWindow
 
 def load_stylesheet(app: QApplication) -> None:
     """Load QSS dark theme from resources/styles.qss."""
-    qss_path = Path(__file__).parent / "resources" / "styles.qss"
+    qss_path = APP_DIR / "resources" / "styles.qss"
     if qss_path.exists():
         with open(qss_path, "r", encoding="utf-8") as f:
             app.setStyleSheet(f.read())

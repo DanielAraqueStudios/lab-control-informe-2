@@ -350,6 +350,18 @@ El proyecto se divide en módulos incrementales para facilitar desarrollo y prue
 - Comandos UART para ángulo, izquierda/derecha y giro continuo CW/CCW
 - Base para futura pestaña de control en la interfaz Python
 
+**Sprint 8: Secuencia Sincronizada de Servos (`08_servo_sync_sequence.ino`)**
+- Mueve ambos servos al mismo tiempo con `ESP32Servo`
+- Barrido automatico `0 -> 180 -> 0`
+- Comandos UART para detener, reanudar, asignar angulos y ver depuracion
+- Usa Servo 1 en GPIO18 y Servo 2 en GPIO19
+
+**Sprint 9: Sistema Completo con Valvulas Servo (`09_full_system_servo_valves.ino`)**
+- Integra bomba, sensores ultrasonicos, sensor de flujo y dos valvulas servo
+- Controla la altura de cada tanque usando la lectura real ultrasonica
+- Valvulas calibradas como `170 = abierta` y `180 = cerrada`
+- Comandos UART: `SETLEVEL1,<mm>`, `SETLEVEL2,<mm>`, `LEVELCTRL,ON/OFF`, `VALVESTATUS`
+
 ---
 
 ## Fundamentos Técnicos de Implementación
@@ -586,9 +598,15 @@ lab-control-informe-2/
 │   ├── 06_ultrasonic_sensors/
 │   │   ├── 06_ultrasonic_sensors.ino # Sprint 6: Prueba HC-SR04
 │   │   └── README_SPRINT6.md         # Guía Sprint 6
-│   └── 07_servo_control/
-│       ├── 07_servo_control.ino      # Sprint 7: Control dual de servos
-│       └── README_SPRINT7.md         # Guía Sprint 7
+│   ├── 07_servo_control/
+│   │   ├── 07_servo_control.ino      # Sprint 7: Control dual de servos
+│   │   └── README_SPRINT7.md         # Guía Sprint 7
+│   ├── 08_servo_sync_sequence/
+│   │   ├── 08_servo_sync_sequence.ino # Sprint 8: Servo dual + UART debug
+│   │   └── README_SPRINT8.md          # Guía Sprint 8
+│   └── 09_full_system_servo_valves/
+│       ├── 09_full_system_servo_valves.ino # Sprint 9: Altura con valvulas servo
+│       └── README_SPRINT9.md               # Guía Sprint 9
 │
 ├── python_app/                        # Interfaz de escritorio PyQt6
 │   ├── main.py                        # Punto de entrada de la UI
@@ -1331,6 +1349,8 @@ HELP                    → Mostrar comandos disponibles
 - Tabla de pines actualizada: Tank1 TRIG/ECHO en GPIO5/GPIO6 y Tank2 TRIG/ECHO en GPIO8/GPIO9.
 - Agregado Sprint 6 (`06_ultrasonic_sensors.ino`) como prueba aislada de medición ultrasónica.
 - Agregado Sprint 7 (`07_servo_control.ino`) para control dual de servomotores en GPIO10/GPIO11.
+- Agregado Sprint 8 (`08_servo_sync_sequence.ino`) para barrido sincronizado 0-180 y depuracion UART usando GPIO18/GPIO19.
+- Agregado Sprint 9 (`09_full_system_servo_valves.ino`) para control de altura por sensores ultrasonicos y valvulas servo en GPIO18/GPIO19.
 - Agregada referencia a la interfaz Python/PyQt6 (`python_app`) y al flujo UART/CSV.
 - Comandos seriales actualizados para `05_complete_system.ino`.
 
