@@ -9,8 +9,8 @@
  *
  * Descripcion:
  *   Prueba aislada para controlar dos servomotores desde UART/USB.
- *   Este sprint reserva GPIO10 y GPIO11 como salidas PWM de servo antes de
- *   integrar el control a la interfaz Python.
+ *   Este sprint usa el pinout vigente de Sprint 9 para validar las salidas de
+ *   las valvulas servo antes de integrarlas al sistema completo.
  *
  * Hardware:
  *   - ESP32-S3 DevKit
@@ -18,8 +18,8 @@
  *   - Fuente externa 5V para servos
  *
  * Conexiones:
- *   GPIO 10 -> Servo 1 Signal
- *   GPIO 11 -> Servo 2 Signal
+ *   GPIO 18 -> Servo 1 / valvula Tank 1 Signal
+ *   GPIO 19 -> Servo 2 / valvula Tank 2 Signal
  *   GND ESP32 -> GND fuente servos
  *
  * Comandos UART (115200 baud):
@@ -47,8 +47,8 @@
 // DEFINICION DE PINES
 // ============================================================================
 
-#define SERVO1_PIN 10
-#define SERVO2_PIN 11
+#define SERVO1_PIN 18
+#define SERVO2_PIN 19
 
 // ============================================================================
 // CONFIGURACION SERVO PWM

@@ -23,7 +23,7 @@
  *   GPIO 16 → IN2 (Dirección)
  *   GPIO 7  → LED status
  * 
- * Pines disponibles: 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 46
+ * Pines disponibles segun referencia Sprint 9: 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 46
  * 
  * Comandos UART (115200 baud):
  *   PWM,<valor>      - Establecer PWM (0-255)
@@ -43,7 +43,8 @@
 // ============================================================================
 // DEFINICIÓN DE PINES
 // ============================================================================
-// RESTRICCIÓN: Solo usar GPIOs 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 46
+// RESTRICCION: Sprint 9 es la referencia vigente de pinout.
+// Solo usar GPIOs 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 46
 
 // Pines control H-Bridge
 #define MOTOR_PWM_PIN    17    // Pin PWM (ENA en L298N)

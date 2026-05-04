@@ -10,22 +10,24 @@
  * Descripción:
  *   Integración completa de control de motor (Sprint 1) y lectura de sensores
  *   (Sprint 2) para caracterización del sistema en lazo abierto.
+ *   Nota: Sprint 9 es la referencia vigente del pinout integrado; este sketch
+ *   conserva la ruta histórica SE045/ADC para caracterización.
  *   Permite identificar la relación PWM → Flujo para modelado matemático.
  * 
  * Hardware:
  *   - ESP32-S3 DevKit
  *   - H-Bridge L298N + Motor 12V
  *   - Sensor de flujo YF-S401
- *   - 2x Sensores de nivel SE045
- *   - Divisores resistivos 10kΩ/22kΩ
+ *   - 2x Sensores de nivel SE045 (historico; Sprint 9 usa HC-SR04)
+ *   - Divisores resistivos 10kΩ/22kΩ para la ruta historica
  * 
- * Conexiones:
+ * Conexiones historicas de este sketch. Referencia vigente de sistema: Sprint 9.
  *   GPIO 17 → H-Bridge ENA (PWM)
  *   GPIO 15 → H-Bridge IN1
  *   GPIO 16 → H-Bridge IN2
  *   GPIO 4  → YF-S401 Signal
- *   GPIO 5  → SE045 Tank1 (con divisor)
- *   GPIO 6  → SE045 Tank2 (con divisor)
+ *   GPIO 5  → SE045 Tank1 historico (Sprint 9: HC-SR04 T1 TRIG)
+ *   GPIO 6  → SE045 Tank2 historico (Sprint 9: HC-SR04 T1 ECHO)
  *   GPIO 7  → LED Status
  * 
  * Comandos UART (115200 baud):

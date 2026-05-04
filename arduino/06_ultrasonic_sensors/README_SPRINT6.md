@@ -6,9 +6,9 @@ El sistema ha evolucionado abandonando los sensores resistivos analógicos (SE04
 
 Este Sprint contiene el código autónomo para aislar, probar, calibrar y hacer *debugging* de la señal de distancia en milímetros antes de inyectar este nuevo mecanismo al código principal `05_complete_system.ino` y conectarlo a la UI de Python.
 
-## Propuesta de Pines (Respetando las restricciones ESP32-S3)
+## Pines de Referencia Sprint 9
 
-Teníamos disponibles los GPIOs: 3, 8, 9, 10, 11, 12, 13, 18, 46. Se han propuesto los pines **8 y 9** para el segundo tanque por estar físicamente juntos en el DevKit y facilitar el entubado de los cables Dupont.
+Sprint 9 es la referencia vigente de pinout para el sistema integrado. La prueba aislada de este sprint usa los mismos pines de ultrasonido:
 
 | Tanque | Función | GPIO ESP32-S3 | Cable recomendado |
 |--------|---------|---------------|-------------------|

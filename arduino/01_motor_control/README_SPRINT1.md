@@ -1,13 +1,13 @@
 # SPRINT 1: Motor Control - Quick Start Guide
 
 > ⚙️ **Software Requirement:** ESP32 Arduino Core **3.0.0+** (uses new ledcAttach API)  
-> 📌 **Pin Restriction:** Only GPIOs 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 46
+> 📌 **Pin Restriction:** Sprint 9 is the current pinout reference. Only GPIOs 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 46
 
 ## 📋 Hardware Setup
 
 ### Connections Required
 
-**⚠️ PIN RESTRICTION:** Only use GPIOs 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 46
+**⚠️ PIN RESTRICTION:** Sprint 9 is the current pinout reference. Only use GPIOs 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 46
 
 ```
 ESP32-S3 → H-Bridge L298N
@@ -455,7 +455,7 @@ After mastering Sprint 1, proceed to:
 **Sprint 2: Sensor Reading**
 - Add YF-S401 flow sensor
 - Implement interrupt-based pulse counting
-- Read SE045 water level sensors (ADC)
+- Read tank levels using the Sprint 9 HC-SR04 pinout where applicable
 - Real-time data visualization
 
 ---

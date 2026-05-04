@@ -12,7 +12,7 @@
 const int TRIG_PIN_1 = 5;
 const int ECHO_PIN_1 = 6;
 
-// Tanque 2 (Pines propuestos compatibles con la lista de pines disponibles)
+// Tanque 2 (pines vigentes segun referencia Sprint 9)
 const int TRIG_PIN_2 = 8;
 const int ECHO_PIN_2 = 9;
 

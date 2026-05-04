@@ -2,14 +2,14 @@
 
 ## Objetivo
 
-Este sprint agrega una prueba aislada para mover dos servomotores desde comandos UART/USB, usando los pines reservados:
+Este sprint agrega una prueba aislada para mover dos servomotores desde comandos UART/USB, usando el pinout vigente de Sprint 9:
 
 | Servo | GPIO ESP32-S3 | Funcion |
 |-------|---------------|---------|
-| Servo 1 | GPIO10 | PWM signal |
-| Servo 2 | GPIO11 | PWM signal |
+| Servo 1 / valvula Tank 1 | GPIO18 | PWM signal |
+| Servo 2 / valvula Tank 2 | GPIO19 | PWM signal |
 
-El sketch esta pensado como base para una futura pestana en la interfaz Python, sin modificar todavia el sistema principal `05_complete_system.ino`.
+El sketch esta pensado como base para la pestana de servos en la interfaz Python y para validar los mismos pines usados por `09_full_system_servo_valves.ino`.
 
 ## Hardware
 
@@ -21,8 +21,8 @@ El sketch esta pensado como base para una futura pestana en la interfaz Python, 
 ## Conexion
 
 ```text
-ESP32-S3 GPIO10  -> Servo 1 Signal
-ESP32-S3 GPIO11  -> Servo 2 Signal
+ESP32-S3 GPIO18  -> Servo 1 / valvula Tank 1 Signal
+ESP32-S3 GPIO19  -> Servo 2 / valvula Tank 2 Signal
 Fuente 5V        -> VCC servos
 Fuente GND       -> GND servos
 ESP32 GND        -> GND fuente servos
@@ -124,4 +124,3 @@ La pestana de la interfaz puede enviar estos comandos por el mismo `SerialWorker
 - Sliders de angulo: `S1,<angle>` y `S2,<angle>`
 - Botones horario/antihorario: `CR,<servo>,CW,<speed>` y `CR,<servo>,CCW,<speed>`
 - Boton stop: `STOP,<servo>`
-

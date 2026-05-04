@@ -8,22 +8,24 @@
  * SPRINT 2: LECTURA DE SENSORES
  * 
  * Descripción:
- *   Lectura de sensor de flujo YF-S401 (pulsos) y sensores de nivel SE045 (analógico)
+ *   Lectura de sensor de flujo YF-S401 (pulsos) y sensores de nivel SE045 (analógico).
+ *   Nota: Sprint 9 es la referencia vigente del pinout integrado; este sketch
+ *   conserva la prueba histórica SE045/ADC.
  *   con procesamiento, calibración y transmisión de datos vía UART.
  * 
  * Hardware:
  *   - ESP32-S3 DevKit
  *   - Sensor de flujo YF-S401 (hall effect, 0.3-6 L/min)
- *   - 2x Sensor de nivel SE045 (analógico, 0-40mm)
+ *   - 2x Sensor de nivel SE045 (analogico, 0-40mm, historico)
  *   - Divisores resistivos 10kΩ/22kΩ para protección ADC
  * 
- * Conexiones:
+ * Conexiones historicas de este sketch. Referencia vigente de sistema: Sprint 9.
  *   GPIO 4  → YF-S401 Signal (interrupción)
- *   GPIO 5  → SE045 Tank1 (ADC con divisor resistivo)
- *   GPIO 6  → SE045 Tank2 (ADC con divisor resistivo)
+ *   GPIO 5  → SE045 Tank1 (ADC historico; Sprint 9: HC-SR04 T1 TRIG)
+ *   GPIO 6  → SE045 Tank2 (ADC historico; Sprint 9: HC-SR04 T1 ECHO)
  *   GPIO 7  → LED status
  * 
- * Pines disponibles: 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 46
+ * Pines disponibles segun referencia Sprint 9: 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 46
  * 
  * Comandos UART (115200 baud):
  *   FLOWRAW          - Lectura cruda del sensor de flujo (pulsos/s)
@@ -49,12 +51,13 @@
 // ============================================================================
 // DEFINICIÓN DE PINES
 // ============================================================================
-// RESTRICCIÓN: Solo usar GPIOs 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 46
+// RESTRICCION: Sprint 9 es la referencia vigente de pinout.
+// Solo usar GPIOs 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 46
 
 // Pines sensores
 #define FLOW_SENSOR_PIN    4     // YF-S401 pulsos (interrupción)
-#define LEVEL1_SENSOR_PIN  5     // SE045 Tank 1 (ADC1_CH4)
-#define LEVEL2_SENSOR_PIN  6     // SE045 Tank 2 (ADC1_CH5)
+#define LEVEL1_SENSOR_PIN  5     // SE045 historico Tank 1 (Sprint 9: HC-SR04 T1 TRIG)
+#define LEVEL2_SENSOR_PIN  6     // SE045 historico Tank 2 (Sprint 9: HC-SR04 T1 ECHO)
 
 // Pines indicadores
 #define LED_STATUS_PIN     7     // LED status externo

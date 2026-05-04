@@ -7,7 +7,7 @@
  * Ingeniería Mecatrónica - Control Lineal y Laboratorio
  * ============================================================================
  * 
- * SPRINT 5: SISTEMA COMPLETO
+ * SPRINT 9: SISTEMA COMPLETO + VALVULAS SERVO
  * 
  * Descripción:
  *   Sistema de control integral con control PID de dos tanques, generación
@@ -26,16 +26,21 @@
  *   - ESP32-S3 DevKit
  *   - H-Bridge L298N + Motor 12V
  *   - Sensor de flujo YF-S401
- *   - 2x Sensores de nivel SE045
+ *   - 2x Sensores de nivel HC-SR04
+ *   - 2x Valvulas servo
  * 
  * Conexiones:
  *   GPIO 17 → H-Bridge ENA (PWM)
  *   GPIO 15 → H-Bridge IN1
  *   GPIO 16 → H-Bridge IN2
  *   GPIO 4  → YF-S401 Signal
- *   GPIO 5  → SE045 Tank1
- *   GPIO 6  → SE045 Tank2
+ *   GPIO 5  → HC-SR04 Tank1 TRIG
+ *   GPIO 6  → HC-SR04 Tank1 ECHO
+ *   GPIO 8  → HC-SR04 Tank2 TRIG
+ *   GPIO 9  → HC-SR04 Tank2 ECHO
  *   GPIO 7  → LED Status
+ *   GPIO 18 → Servo valve Tank1
+ *   GPIO 19 → Servo valve Tank2
  * 
  * Comandos UART (115200 baud):
  *   SETMODE,<mode>       - Mode: MANUAL, AUTO_FLOW, AUTO_LEVEL1, AUTO_LEVEL2, CASCADE

@@ -1,7 +1,9 @@
 # SPRINT 2: Sensor Reading - Quick Start Guide
 
 > ⚙️ **Software Requirement:** ESP32 Arduino Core **3.0.0+**  
-> 📌 **Pin Restriction:** Only GPIOs 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 46
+> 📌 **Pin Restriction:** Sprint 9 is the current pinout reference. Only GPIOs 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 46
+
+> ⚠️ **Historical note:** this sprint keeps the original SE045/ADC level-sensor workflow for reference. For the current integrated system, use the Sprint 9 pinout: YF-S401 on GPIO4, HC-SR04 Tank 1 on GPIO5/GPIO6, HC-SR04 Tank 2 on GPIO8/GPIO9, servo valves on GPIO18/GPIO19.
 
 ## 📋 Hardware Setup
 

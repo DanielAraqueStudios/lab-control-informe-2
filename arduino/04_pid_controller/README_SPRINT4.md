@@ -60,7 +60,7 @@ SETKD,24.0
 
 ## Conexiones
 
-Mismo hardware que Sprint 3:
+Sprint 9 es la referencia vigente de pinout para el sistema integrado. El control PID de flujo de este sprint usa los mismos pines de bomba y caudalímetro. La lectura SE045/ADC que aparece en este sprint queda como ruta histórica; para nivel vigente usar HC-SR04.
 
 | Componente | Pin ESP32 | Función |
 |------------|-----------|---------|
@@ -68,9 +68,13 @@ Mismo hardware que Sprint 3:
 | H-Bridge IN1 | GPIO 15 | Dirección 1 |
 | H-Bridge IN2 | GPIO 16 | Dirección 2 |
 | YF-S401 Signal | GPIO 4 | Interrupción flujo |
-| SE045 Tank 1 | GPIO 5 | ADC nivel 1 (con divisor) |
-| SE045 Tank 2 | GPIO 6 | ADC nivel 2 (con divisor) |
+| HC-SR04 Tank 1 TRIG | GPIO 5 | Disparo ultrasónico |
+| HC-SR04 Tank 1 ECHO | GPIO 6 | Eco con divisor a 3.3V |
+| HC-SR04 Tank 2 TRIG | GPIO 8 | Disparo ultrasónico |
+| HC-SR04 Tank 2 ECHO | GPIO 9 | Eco con divisor a 3.3V |
 | LED Status | GPIO 7 | Indicador PID activo |
+| Servo válvula Tank 1 | GPIO 18 | Pin reservado por Sprint 9 |
+| Servo válvula Tank 2 | GPIO 19 | Pin reservado por Sprint 9 |
 
 ## Comandos UART (115200 baud)
 
@@ -270,9 +274,9 @@ STARTPID
 ### Error: Lecturas de sensores erráticas
 
 ```
-# Verificar divisores de voltaje:
-1. Nivel 1 → 10kΩ + 22kΩ en GPIO 5
-2. Nivel 2 → 10kΩ + 22kΩ en GPIO 6
+# Verificar pinout vigente:
+1. Tank 1 HC-SR04: TRIG GPIO5, ECHO GPIO6 con divisor a 3.3V
+2. Tank 2 HC-SR04: TRIG GPIO8, ECHO GPIO9 con divisor a 3.3V
 ```
 
 ## Compilación

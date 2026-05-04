@@ -271,7 +271,7 @@ Flujo funcional actual:
 
 #### 4.2 Asignación de Pines ESP32-S3
 
-⚠️ **RESTRICCIÓN DE PINES:** Solo se usarán los siguientes GPIOs: **3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 46**
+⚠️ **REFERENCIA VIGENTE DE PINOUT:** Sprint 9 es la referencia actual para cableado del sistema integrado. Solo se usarán los siguientes GPIOs: **3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 46**
 
 | Función | GPIO | Tipo | Notas |
 |---------|------|------|-------|
@@ -285,6 +285,9 @@ Flujo funcional actual:
 | HC-SR04 Tank 1 ECHO | GPIO 6 | Input Digital | Pulso de retorno, usar divisor a 3.3V |
 | HC-SR04 Tank 2 TRIG | GPIO 8 | Output Digital | Pulso de disparo ultrasónico |
 | HC-SR04 Tank 2 ECHO | GPIO 9 | Input Digital | Pulso de retorno, usar divisor a 3.3V |
+| **Válvulas Servo (Sprint 9)** ||||
+| Servo válvula Tank 1 | GPIO 18 | Output PWM | Señal servo válvula Tanque 1 |
+| Servo válvula Tank 2 | GPIO 19 | Output PWM | Señal servo válvula Tanque 2 |
 | **Indicadores** ||||
 | LED Status | GPIO 7 | Output | Indicador estado sistema |
 | **Comunicación** ||||
@@ -296,7 +299,6 @@ Flujo funcional actual:
 | Reserva 5 | GPIO 11 | Multipropósito | Digital I/O |
 | Reserva 6 | GPIO 12 | Multipropósito | Digital I/O |
 | Reserva 7 | GPIO 13 | Multipropósito | Digital I/O |
-| Reserva 8 | GPIO 18 (ADC2_CH7) | Multipropósito | ADC/Digital I/O |
 | Reserva 9 | GPIO 46 | Input Only | Solo entrada |
 
 #### 4.3 Estructura de Programas Arduino (.ino)
@@ -346,7 +348,7 @@ El proyecto se divide en módulos incrementales para facilitar desarrollo y prue
 
 **Sprint 7: Control de Servomotores (`07_servo_control.ino`)**
 - Prueba aislada de dos servomotores
-- Servo 1 en GPIO10 y Servo 2 en GPIO11
+- Servo 1 en GPIO18 y Servo 2 en GPIO19, alineado con el pinout vigente de Sprint 9
 - Comandos UART para ángulo, izquierda/derecha y giro continuo CW/CCW
 - Base para futura pestaña de control en la interfaz Python
 
@@ -1348,7 +1350,7 @@ HELP                    → Mostrar comandos disponibles
 - Sensores de nivel documentados como HC-SR04 en lugar de SE045 para el sistema actual.
 - Tabla de pines actualizada: Tank1 TRIG/ECHO en GPIO5/GPIO6 y Tank2 TRIG/ECHO en GPIO8/GPIO9.
 - Agregado Sprint 6 (`06_ultrasonic_sensors.ino`) como prueba aislada de medición ultrasónica.
-- Agregado Sprint 7 (`07_servo_control.ino`) para control dual de servomotores en GPIO10/GPIO11.
+- Agregado Sprint 7 (`07_servo_control.ino`) para control dual de servomotores en GPIO18/GPIO19, alineado con Sprint 9.
 - Agregado Sprint 8 (`08_servo_sync_sequence.ino`) para barrido sincronizado 0-180 y depuracion UART usando GPIO18/GPIO19.
 - Agregado Sprint 9 (`09_full_system_servo_valves.ino`) para control de altura por sensores ultrasonicos y valvulas servo en GPIO18/GPIO19.
 - Agregada referencia a la interfaz Python/PyQt6 (`python_app`) y al flujo UART/CSV.

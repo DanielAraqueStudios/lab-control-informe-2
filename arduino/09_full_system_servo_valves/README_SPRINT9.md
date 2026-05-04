@@ -62,15 +62,19 @@ Serial Monitor:
 Newline enabled
 ```
 
+Commands are case-insensitive because the firmware converts incoming UART text to uppercase before parsing.
+
 Height control commands:
 
 | Command | Meaning |
 |---------|---------|
-| `SETLEVEL1,<mm>` | Set Tank 1 target height |
-| `SETLEVEL2,<mm>` | Set Tank 2 target height |
+| `SETLEVEL1,<mm>` | Set Tank 1 target height (`h1`) |
+| `SETLEVEL2,<mm>` | Set Tank 2 target height (`h2`) |
 | `LEVELCTRL,ON` | Enable automatic servo valve height control |
-| `LEVELCTRL,OFF` | Disable valve height control and close valves |
+| `LEVELCTRL,OFF` | Disable valve height control and close both valves |
 | `VALVESTATUS` | Print actual heights, targets, and valve angles |
+
+The height targets are independent for each tank. The valve controller compares each ultrasonic height against its own target and commands the corresponding servo valve.
 
 Manual valve commands:
 
@@ -85,19 +89,52 @@ Manual valve commands:
 | `VALVES,OPEN` | Open both valves |
 | `VALVES,CLOSE` | Close both valves |
 
-Existing full-system commands are still available:
+Manual valve commands disable automatic valve height control before moving the valve.
 
-```text
-SETMODE,<mode>
-SETPWM,<0-255>
-SETREF,<type>,<params>
-SETPID1,<Kp>,<Ki>,<Kd>
-SETPID2,<Kp>,<Ki>,<Kd>
-STARTCTRL
-STOPCTRL
-STATUS
-HELP
-```
+Mode, pump, and PID commands:
+
+| Command | Meaning |
+|---------|---------|
+| `SETMODE,MANUAL` | Manual pump mode |
+| `SETMODE,AUTO_FLOW` | Automatic flow PID mode |
+| `SETMODE,AUTO_LEVEL1` | Automatic Tank 1 level PID mode |
+| `SETMODE,AUTO_LEVEL2` | Automatic Tank 2 level PID mode |
+| `SETMODE,CASCADE` | Cascade mode: Tank 1 level to flow to pump |
+| `SETPWM,<0-255>` | Set pump PWM in `MANUAL` mode only |
+| `SETPID1,<Kp>,<Ki>,<Kd>` | Set Tank 1 level PID gains |
+| `SETPID2,<Kp>,<Ki>,<Kd>` | Set Tank 2 level PID gains |
+| `STARTCTRL` | Start the active pump/PID control mode and print current heights |
+| `STOPCTRL` | Stop PID/control, stop pump, disable valve control, and close both valves |
+
+Reference commands:
+
+| Command | Meaning |
+|---------|---------|
+| `SETREF,STEP,<initial>,<final>` | Step reference |
+| `SETREF,RAMP,<initial>,<final>,<duration_s>` | Ramp reference |
+| `SETREF,PARA,<initial>,<final>,<duration_s>` | Parabolic/smooth reference |
+
+Logging, metrics, calibration, and experiments:
+
+| Command | Meaning |
+|---------|---------|
+| `DATALOG` | Toggle CSV telemetry logging |
+| `METRICS` | Start/stop and print performance metrics |
+| `CALMODE` | Start calibration stream with default 60% pump |
+| `CALMODE,<0-100>` | Start calibration stream with pump percentage |
+| `CALSTOP` | Stop calibration mode and stop pump |
+| `SETCAL,<tank>,<empty>,<full>` | Apply legacy ADC calibration values for tank 1 or 2 |
+| `GETCAL` | Print current legacy ADC calibration values |
+| `EXPERIMENT,STEP_FLOW` | Run predefined step flow experiment |
+| `EXPERIMENT,RAMP_LEVEL` | Run predefined Tank 1 ramp level experiment |
+| `EXPERIMENT,DISTURBANCE` | Run predefined disturbance test |
+
+Information commands:
+
+| Command | Meaning |
+|---------|---------|
+| `STATUS` | Print full system status |
+| `HELP` | Print available Sprint 9 commands |
 
 ## Example Use
 
@@ -148,3 +185,5 @@ Both valves CLOSED
 The ultrasonic sensors provide the feedback. The servos do not report their actual physical position back to the ESP32-S3, so valve angle status means the last commanded angle.
 
 The control range is intentionally narrow because the physical valve calibration is `170=open` and `180=closed`.
+
+`SETCAL` and `GETCAL` are preserved from older ADC level-sensor workflows. In Sprint 9, the active tank height feedback comes from the HC-SR04 ultrasonic sensors.

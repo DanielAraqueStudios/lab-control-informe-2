@@ -10,20 +10,22 @@
  * Descripción:
  *   Control en lazo cerrado del flujo de agua mediante controlador PID digital.
  *   Sintonizado por método de Ziegler-Nichols para seguimiento de referencias.
+ *   Nota: Sprint 9 es la referencia vigente del pinout integrado; este sketch
+ *   conserva la lectura historica SE045/ADC para variables auxiliares de nivel.
  * 
  * Hardware:
  *   - ESP32-S3 DevKit
  *   - H-Bridge L298N + Motor 12V
  *   - Sensor de flujo YF-S401
- *   - 2x Sensores de nivel SE045
+ *   - 2x Sensores de nivel SE045 (historico; Sprint 9 usa HC-SR04)
  * 
- * Conexiones:
+ * Conexiones historicas de este sketch. Referencia vigente de sistema: Sprint 9.
  *   GPIO 17 → H-Bridge ENA (PWM)
  *   GPIO 15 → H-Bridge IN1
  *   GPIO 16 → H-Bridge IN2
  *   GPIO 4  → YF-S401 Signal
- *   GPIO 5  → SE045 Tank1
- *   GPIO 6  → SE045 Tank2
+ *   GPIO 5  → SE045 Tank1 historico (Sprint 9: HC-SR04 T1 TRIG)
+ *   GPIO 6  → SE045 Tank2 historico (Sprint 9: HC-SR04 T1 ECHO)
  *   GPIO 7  → LED Status
  * 
  * Comandos UART (115200 baud):

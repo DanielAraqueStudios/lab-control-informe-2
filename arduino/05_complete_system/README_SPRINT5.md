@@ -41,7 +41,7 @@ Este es el código **FINAL Y COMPLETO** que integra todos los sprints anteriores
 │         │                                                │
 │         ▼                                                │
 │  ┌─────────────────────────────────────────┐            │
-│  │  Sensores (YF-S401 + 2x SE045)          │            │
+│  │  Sensores (YF-S401 + 2x HC-SR04)        │            │
 │  └─────────────────────────────────────────┘            │
 │         │                                                │
 │         └────────► Retroalimentación                     │
@@ -63,9 +63,13 @@ Este es el código **FINAL Y COMPLETO** que integra todos los sprints anteriores
                          │                              │
    ┌─ YF-S401 (Signal) ──┤ GPIO 4    (INPUT PULLUP)    │
    │                     │                              │
-   ├─ SE045 Tank 1 ───── ┤ GPIO 5    (ADC1 / INPUT)    │
+   ├─ HC-SR04 T1 TRIG ── ┤ GPIO 5    (OUTPUT)          │
    │                     │                              │
-   ├─ SE045 Tank 2 ───── ┤ GPIO 6    (ADC1 / INPUT)    │
+   ├─ HC-SR04 T1 ECHO ── ┤ GPIO 6    (INPUT)           │
+   │                     │                              │
+   ├─ HC-SR04 T2 TRIG ── ┤ GPIO 8    (OUTPUT)          │
+   │                     │                              │
+   ├─ HC-SR04 T2 ECHO ── ┤ GPIO 9    (INPUT)           │
    │                     │                              │
    │  LED de estado ───── ┤ GPIO 7    (OUTPUT)          │
    │                     │                              │
@@ -86,9 +90,11 @@ Este es el código **FINAL Y COMPLETO** que integra todos los sprints anteriores
 | GPIO | Función | Dirección | Componente | Señal |
 |------|---------|-----------|------------|-------|
 | **4** | Caudalímetro | INPUT PULLUP | YF-S401 | Pulsos digitales |
-| **5** | Nivel Tanque 1 | INPUT (ADC) | SE045 | 0 – 3.3 V analógico |
-| **6** | Nivel Tanque 2 | INPUT (ADC) | SE045 | 0 – 3.3 V analógico |
+| **5** | TRIG Tanque 1 | OUTPUT | HC-SR04 | Pulso de disparo |
+| **6** | ECHO Tanque 1 | INPUT | HC-SR04 | Eco con divisor a 3.3 V |
 | **7** | LED de estado | OUTPUT | LED + resistencia | HIGH = activo |
+| **8** | TRIG Tanque 2 | OUTPUT | HC-SR04 | Pulso de disparo |
+| **9** | ECHO Tanque 2 | INPUT | HC-SR04 | Eco con divisor a 3.3 V |
 | **15** | Motor IN1 | OUTPUT | H-Bridge | DIR giro |
 | **16** | Motor IN2 | OUTPUT | H-Bridge | DIR giro |
 | **17** | Motor ENA | OUTPUT (PWM) | H-Bridge | Control velocidad |
@@ -121,28 +127,29 @@ YF-S401          ESP32-S3
 
 ---
 
-#### SE045 — Sensor de Nivel Tanque 1 (GPIO 5)
+#### HC-SR04 — Sensor de Nivel Tanque 1 (GPIO 5 / GPIO 6)
 
 ```
-SE045 (Tank 1)   ESP32-S3
-  VCC  ─────────  3.3V
+HC-SR04 (Tank 1) ESP32-S3
+  VCC  ─────────  5V
   GND  ─────────  GND
-  OUT  ─────────  GPIO 5  (ADC1, 12 bits, promedio 10 muestras)
+  TRIG ─────────  GPIO 5
+  ECHO ─────────  GPIO 6  (usar divisor resistivo a 3.3V)
 ```
 
 ---
 
-#### SE045 — Sensor de Nivel Tanque 2 (GPIO 6)
+#### HC-SR04 — Sensor de Nivel Tanque 2 (GPIO 8 / GPIO 9)
 
 ```
-SE045 (Tank 2)   ESP32-S3
-  VCC  ─────────  3.3V
+HC-SR04 (Tank 2) ESP32-S3
+  VCC  ─────────  5V
   GND  ─────────  GND
-  OUT  ─────────  GPIO 6  (ADC1, 12 bits, promedio 10 muestras)
+  TRIG ─────────  GPIO 8
+  ECHO ─────────  GPIO 9  (usar divisor resistivo a 3.3V)
 ```
 
-> **Nota SE045:** Sensor ultrasónico / presión diferencial. La lectura ADC (0–4095)  
-> se convierte a mm mediante mapeo lineal configurado en el código.
+> **Nota HC-SR04:** Sprint 9 es la referencia vigente de pinout. La lectura de distancia se convierte a altura con `nivel_mm = altura_tanque_mm - distancia_mm`.
 
 ---
 
@@ -171,7 +178,7 @@ H-Bridge         ESP32-S3          Bomba
 | ESP32-S3 | 5V (USB) / 3.3V (regulado) | 500 mA |
 | H-Bridge + Motor | 12V DC | 2–5 A (según bomba) |
 | YF-S401 | 5V DC | 15 mA |
-| SE045 (×2) | 3.3V DC | 15 mA c/u |
+| HC-SR04 (×2) | 5V DC | 15 mA c/u aprox. |
 
 > ⚠️ **GND común obligatorio** entre la fuente de 12V del H-Bridge y el GND del ESP32-S3.
 
@@ -623,7 +630,7 @@ STOPCTRL
 | Sensor/Actuador | Frecuencia | Período |
 |-----------------|------------|---------|
 | YF-S401 (flujo) | 1 Hz | 1000 ms |
-| SE045 (niveles) | 1 Hz | 1000 ms |
+| HC-SR04 (niveles) | 1 Hz | 1000 ms |
 | Loop control PID | 10 Hz | 100 ms |
 | Logging CSV | 10 Hz | 100 ms |
 | PWM motor | 10 kHz | 0.1 ms |
