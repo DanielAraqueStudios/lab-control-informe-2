@@ -3,7 +3,7 @@ Protocol parser for Arduino serial communication.
 """
 import re
 from typing import Optional, Union
-from core.models import TelemetryData, StatusMessage, MetricsData
+from core.models import TelemetryData, StatusMessage, MetricsData, LiveData
 
 
 class ProtocolParser:
@@ -12,6 +12,8 @@ class ProtocolParser:
     # Regex patterns for different message types
     STATUS_PATTERN = re.compile(r'\[(MODE|CTRL|PID|METRICS|ERROR|INFO|CMD|LOG|OK|READY|STEP|EXP|CAL|SERVO1|SERVO2|VALVE|LEVEL|HEIGHT)\]\s*(.+)')
     CSV_HEADER_PATTERN = re.compile(r'^Time_s,Mode,RefType')
+    LIVE_DATA_PATTERN = re.compile(r'\[DATA\]\s+flow_lpm=([^,]+),t1_mm=([^,]+),t2_mm=([^,]+),d1_mm=([^,]+),d2_mm=([^,]+),pwm=([^,]+),pump=(ON|OFF),dir=(FWD|REV),s1=([^,]+),s2=([^,]+),volume_l=([^,\s]+)')
+    
     METRICS_OVERSHOOT = re.compile(r'Overshoot.*?:\s*([\d.]+)%')
     METRICS_RISE = re.compile(r'Rise Time.*?:\s*([\d.]+)\s*s')
     METRICS_SETTLING = re.compile(r'Settling Time.*?:\s*([\d.]+)\s*s')
@@ -22,19 +24,45 @@ class ProtocolParser:
         self.csv_mode = False
         self.metrics_buffer = MetricsData()
         self.in_metrics_block = False
+
+    def reset(self):
+        self.csv_mode = False
+        self.metrics_buffer = MetricsData()
+        self.in_metrics_block = False
     
-    def parse_line(self, line: str) -> Optional[Union[TelemetryData, StatusMessage, MetricsData]]:
+    def parse_line(self, line: str) -> Optional[Union[TelemetryData, StatusMessage, MetricsData, LiveData]]:
         """Parse a single line from Arduino.
         
         Returns:
             TelemetryData if CSV data line
             StatusMessage if tagged status
             MetricsData if metrics block complete
+            LiveData if raw hardware telemetry
             None if unrecognized or header
         """
         line = line.strip()
         if not line:
             return None
+        
+        # Check for Live Data (Hardware Telemetry)
+        live_match = self.LIVE_DATA_PATTERN.search(line)
+        if live_match:
+            try:
+                return LiveData(
+                    flow_lpm=float(live_match.group(1)),
+                    level1_mm=float(live_match.group(2)),
+                    level2_mm=float(live_match.group(3)),
+                    dist1_mm=float(live_match.group(4)),
+                    dist2_mm=float(live_match.group(5)),
+                    pwm=int(live_match.group(6)),
+                    pump_enabled=(live_match.group(7) == "ON"),
+                    pump_dir=live_match.group(8),
+                    servo1_angle=int(live_match.group(9)),
+                    servo2_angle=int(live_match.group(10)),
+                    volume_l=float(live_match.group(11))
+                )
+            except ValueError:
+                pass
         
         # Check for CSV header (toggle CSV mode)
         if self.CSV_HEADER_PATTERN.match(line):

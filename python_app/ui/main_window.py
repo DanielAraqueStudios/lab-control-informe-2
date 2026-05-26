@@ -9,7 +9,7 @@ from PyQt6.QtGui import QKeySequence, QShortcut
 from core.serial_worker import SerialWorker
 from viewmodels import AppState
 from ui.pages import (DashboardPage, DevicePage, ControlsPage,
-                      LogsPage, SettingsPage)
+                      LogsPage, SettingsPage, TelemetryPage)
 from ui.components.status_chip import StatusChip
 
 
@@ -90,6 +90,7 @@ class MainWindow(QMainWindow):
             ("🎛", "Controls"),
             ("📋", "Logs"),
             ("⚙", "Settings"),
+            ("📡", "Telemetry"),
         ]
         self.nav_buttons: list[NavButton] = []
         nav_widget = QWidget()
@@ -117,15 +118,16 @@ class MainWindow(QMainWindow):
         self.controls_page   = ControlsPage(app_state, serial_worker)
         self.logs_page       = LogsPage(app_state)
         self.settings_page   = SettingsPage(app_state)
+        self.telemetry_page  = TelemetryPage(app_state)
 
         for page in [self.dashboard_page, self.device_page, self.controls_page,
-                     self.logs_page, self.settings_page]:
+                     self.logs_page, self.settings_page, self.telemetry_page]:
             self.pages.addWidget(page)
 
         root_layout.addWidget(self.pages, stretch=1)
 
         # ── Keyboard shortcuts ───────────────────────────────────────────────
-        for i in range(5):
+        for i in range(6):
             sc = QShortcut(QKeySequence(f"Ctrl+{i+1}"), self)
             sc.activated.connect(self._make_nav_handler(i))
 

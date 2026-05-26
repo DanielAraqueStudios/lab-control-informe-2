@@ -26,10 +26,28 @@ class ReferenceType(Enum):
 
 
 @dataclass
+class LiveData:
+    """Raw hardware telemetry snapshot from ESP32-S3."""
+    flow_lpm: float
+    level1_mm: float
+    level2_mm: float
+    dist1_mm: float
+    dist2_mm: float
+    pwm: int
+    pump_enabled: bool
+    pump_dir: str
+    servo1_angle: int
+    servo2_angle: int
+    volume_l: float
+    local_time: datetime = field(default_factory=datetime.now)
+
+@dataclass
 class TelemetryData:
     """Complete telemetry snapshot from Arduino."""
     timestamp: float
     mode: ControlMode
+
+# [...] (I will use replace_string_in_file precisely)
     ref_type: ReferenceType
     reference: float
     flow_rate: float

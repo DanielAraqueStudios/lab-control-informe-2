@@ -47,8 +47,8 @@
 // DEFINICION DE PINES
 // ============================================================================
 
-#define SERVO1_PIN 18
-#define SERVO2_PIN 19
+#define SERVO1_PIN 4
+#define SERVO2_PIN 5
 
 // ============================================================================
 // CONFIGURACION SERVO PWM

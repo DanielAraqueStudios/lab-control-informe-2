@@ -1,10 +1,11 @@
   /*
-  * LABORATORIO 2 - SPRINT 09
-  * Manual hardware bring-up firmware for the hydraulic system.
+  * LABORATORIO 2 - SPRINT 10
+  * Tank 1 height control firmware for the hydraulic system.
   *
   * Purpose:
-  *   Control the pump PWM, pump direction, two servo valves, and sensor reads
-  *   directly from UART before adding PID or automatic control.
+  *   Control Tank 1 height from UART using the filtered HC-SR04 reading and
+  *   the Tank 1 outlet servo valve. Manual pump and valve commands remain
+  *   available for bring-up.
   *
   * Canonical Sprint 09 pinout:
   *   GPIO17 -> Pump PWM / L298N ENA
@@ -57,6 +58,11 @@
   const int VALVE_FULL_OPEN_ANGLE = 170;
   const int VALVE_CLOSED_ANGLE = 180;
   const int VALVE_STEP_DEGREES = 1;
+  const float TANK1_TARGET_DEFAULT_MM = 80.0;
+  const float TANK1_HEIGHT_DEADBAND_MM = 3.0;
+  const float TANK1_FULL_OPEN_ERROR_MM = 40.0;
+  const unsigned long HEIGHT_CONTROL_INTERVAL_MS = 300;
+  const unsigned long HEIGHT_CONTROL_LOG_INTERVAL_MS = 2000;
 
   // 14-bit resolution for Servos (0-16383) at 50Hz (20ms period)
   // Duty cycle for 500us = (500 / 20000) * 16384 = 410
@@ -85,6 +91,8 @@
   volatile unsigned long flowPulseCount = 0;
   unsigned long lastFlowUpdateMs = 0;
   unsigned long lastStreamMs = 0;
+  unsigned long lastHeightControlMs = 0;
+  unsigned long lastHeightControlLogMs = 0;
   bool flowInterruptAttached = false;
 
   float flowRateLpm = 0.0;
@@ -110,6 +118,9 @@
   bool streamEnabled = true; // Enabled by default to see telemetry on UART loop
   bool safetyEnabled = false;
   bool isolateFlowInterruptDuringUltrasonic = true;
+  bool tank1HeightControlEnabled = false;
+  float tank1TargetHeightMm = TANK1_TARGET_DEFAULT_MM;
+  int lastTank1ControlAngle = -1;
 
   int tank1ValveAngle = VALVE_CLOSED_ANGLE;
   int tank2ValveAngle = VALVE_CLOSED_ANGLE;
@@ -163,10 +174,10 @@
 
     Serial.println();
     Serial.println("============================================================");
-    Serial.println("  LAB 2 - SPRINT 09 MANUAL HARDWARE CONTROL");
+    Serial.println("  LAB 2 - SPRINT 10 TANK 1 HEIGHT CONTROL");
     Serial.println("============================================================");
     Serial.println("[OK] Hardware initialized");
-    Serial.println("[OK] Startup state: PWM=0, pump OFF, valves CLOSED, Stream ON");
+    Serial.println("[OK] Startup state: PWM=0, pump OFF, valves CLOSED, Tank1 control OFF, Stream ON");
     printPinout();
     printStatus();
     printHelp();
@@ -184,6 +195,13 @@
       readAllSensors();
       printData();
       lastStreamMs = millis();
+    }
+
+    if (tank1HeightControlEnabled &&
+        millis() - lastHeightControlMs >= HEIGHT_CONTROL_INTERVAL_MS) {
+      readAllSensors();
+      updateTank1HeightControl();
+      lastHeightControlMs = millis();
     }
 
     if (safetyEnabled) {
@@ -245,6 +263,7 @@
       setPumpDirection(false);
     }
     else if (cmd.startsWith("S1,")) {
+      tank1HeightControlEnabled = false;
       setServoAngle(1, cmd.substring(3).toInt());
     }
     else if (cmd.startsWith("S2,")) {
@@ -257,13 +276,16 @@
         Serial.println("[ERROR] Use BOTH,<angle1>,<angle2>");
         return;
       }
+      tank1HeightControlEnabled = false;
       setServoAngle(1, cmd.substring(comma1 + 1, comma2).toInt());
       setServoAngle(2, cmd.substring(comma2 + 1).toInt());
     }
     else if (cmd == "V1,OPEN") {
+      tank1HeightControlEnabled = false;
       openValve(1);
     }
     else if (cmd == "V1,CLOSE") {
+      tank1HeightControlEnabled = false;
       closeValve(1);
     }
     else if (cmd == "V2,OPEN") {
@@ -273,10 +295,29 @@
       closeValve(2);
     }
     else if (cmd == "VALVES,OPEN") {
+      tank1HeightControlEnabled = false;
       openAllValves();
     }
     else if (cmd == "VALVES,CLOSE") {
+      tank1HeightControlEnabled = false;
       closeAllValves();
+    }
+    else if (cmd.startsWith("SETHEIGHT1,") ||
+             cmd.startsWith("SETLEVEL1,") ||
+             cmd.startsWith("TARGET1,") ||
+             cmd.startsWith("H1,")) {
+      int comma = cmd.indexOf(',');
+      setTank1HeightTarget(cmd.substring(comma + 1).toFloat());
+    }
+    else if (cmd == "LEVEL1,ON" || cmd == "HEIGHT1,ON" || cmd == "LEVELCTRL1,ON") {
+      enableTank1HeightControl();
+    }
+    else if (cmd == "LEVEL1,OFF" || cmd == "HEIGHT1,OFF" || cmd == "LEVELCTRL1,OFF") {
+      disableTank1HeightControl(true);
+    }
+    else if (cmd == "LEVEL1,STATUS" || cmd == "HEIGHT1,STATUS") {
+      readAllSensors();
+      printTank1HeightControlStatus();
     }
     else if (cmd.startsWith("DIR,")) {
       handleServoDirectionCommand(cmd);
@@ -291,7 +332,11 @@
       handleServoStopCommand(cmd);
     }
     else if (cmd.startsWith("DISABLE,")) {
-      disableServo(cmd.substring(8).toInt());
+      int servo = cmd.substring(8).toInt();
+      if (servo == 1) {
+        tank1HeightControlEnabled = false;
+      }
+      disableServo(servo);
     }
     else if (cmd == "SERVOTEST,") {
       // This expects parameter but logic fell through above if exact match failed.
@@ -433,6 +478,10 @@
   }
 
   void setServoAngle(int servo, int angle) {
+    applyServoAngle(servo, angle, true);
+  }
+
+  void applyServoAngle(int servo, int angle, bool verbose) {
     angle = constrain(angle, SERVO_MIN_ANGLE, SERVO_MAX_ANGLE);
     int duty = map(angle, SERVO_MIN_ANGLE, SERVO_MAX_ANGLE, SERVO_DUTY_MIN, SERVO_DUTY_MAX);
 
@@ -440,18 +489,22 @@
       tank1ValveAngle = angle;
       ledcWrite(SERVO_TANK1_PIN, duty);
       tank1ServoOutputEnabled = true;
-      Serial.print("[OK] Servo1 angle=");
-      Serial.print(tank1ValveAngle);
-      Serial.print(" duty=");
-      Serial.println(duty);
+      if (verbose) {
+        Serial.print("[OK] Servo1 angle=");
+        Serial.print(tank1ValveAngle);
+        Serial.print(" duty=");
+        Serial.println(duty);
+      }
     } else if (servo == 2) {
       tank2ValveAngle = angle;
       ledcWrite(SERVO_TANK2_PIN, duty);
       tank2ServoOutputEnabled = true;
-      Serial.print("[OK] Servo2 angle=");
-      Serial.print(tank2ValveAngle);
-      Serial.print(" duty=");
-      Serial.println(duty);
+      if (verbose) {
+        Serial.print("[OK] Servo2 angle=");
+        Serial.print(tank2ValveAngle);
+        Serial.print(" duty=");
+        Serial.println(duty);
+      }
     } else {
       Serial.println("[ERROR] Servo must be 1 or 2");
     }
@@ -506,6 +559,10 @@
     int servo = cmd.substring(comma1 + 1, comma2).toInt();
     String direction = cmd.substring(comma2 + 1);
 
+    if (servo == 1) {
+      tank1HeightControlEnabled = false;
+    }
+
     if (direction == "LEFT") {
       setServoAngle(servo, VALVE_FULL_OPEN_ANGLE);
     } else if (direction == "CENTER") {
@@ -529,6 +586,10 @@
     int servo = cmd.substring(comma1 + 1, comma2).toInt();
     String direction = cmd.substring(comma2 + 1);
     int currentAngle = (servo == 1) ? tank1ValveAngle : tank2ValveAngle;
+
+    if (servo == 1) {
+      tank1HeightControlEnabled = false;
+    }
 
     if (direction == "LEFT") {
       setServoAngle(servo, currentAngle - VALVE_STEP_DEGREES);
@@ -555,6 +616,10 @@
     int spanUs = SERVO_MAX_US - SERVO_NEUTRAL_US;
     int pulseUs = SERVO_NEUTRAL_US;
 
+    if (servo == 1) {
+      tank1HeightControlEnabled = false;
+    }
+
     if (direction == "CW") {
       pulseUs = SERVO_NEUTRAL_US + ((spanUs * speed) / 100);
     } else if (direction == "CCW") {
@@ -570,6 +635,9 @@
   void handleServoStopCommand(String cmd) {
     int comma = cmd.indexOf(',');
     int servo = cmd.substring(comma + 1).toInt();
+    if (servo == 1) {
+      tank1HeightControlEnabled = false;
+    }
     writeServoPulse(servo, SERVO_NEUTRAL_US);
   }
 
@@ -577,6 +645,10 @@
     if (servo != 1 && servo != 2) {
       Serial.println("[ERROR] Servo must be 1 or 2");
       return;
+    }
+
+    if (servo == 1) {
+      tank1HeightControlEnabled = false;
     }
 
     Serial.print("[OK] Servo");
@@ -592,6 +664,98 @@
     Serial.print("[OK] Servo");
     Serial.print(servo);
     Serial.println(" test done");
+  }
+
+  // ---------------------------------------------------------------------------
+  // Tank 1 height control
+  // ---------------------------------------------------------------------------
+
+  void setTank1HeightTarget(float targetMm) {
+    tank1TargetHeightMm = constrain(targetMm, 0.0, MAX_LEVEL_ALLOW);
+
+    Serial.print("[OK] Tank1 target_mm=");
+    Serial.print(tank1TargetHeightMm, 1);
+    Serial.print(" range=0.0-");
+    Serial.println(MAX_LEVEL_ALLOW, 1);
+  }
+
+  void enableTank1HeightControl() {
+    readAllSensors();
+    tank1HeightControlEnabled = true;
+    lastHeightControlMs = 0;
+    lastHeightControlLogMs = 0;
+    lastTank1ControlAngle = -1;
+
+    Serial.println("[OK] Tank1 height control ON");
+    printTank1HeightControlStatus();
+  }
+
+  void disableTank1HeightControl(bool closeValveAfterStop) {
+    tank1HeightControlEnabled = false;
+    lastTank1ControlAngle = -1;
+
+    if (closeValveAfterStop) {
+      closeValve(1);
+    }
+
+    Serial.println("[OK] Tank1 height control OFF");
+  }
+
+  void updateTank1HeightControl() {
+    float errorMm = waterLevel1Mm - tank1TargetHeightMm;
+    int desiredAngle = VALVE_CLOSED_ANGLE;
+
+    if (errorMm > TANK1_HEIGHT_DEADBAND_MM) {
+      float activeErrorMm = errorMm - TANK1_HEIGHT_DEADBAND_MM;
+      float ratio = constrain(activeErrorMm /
+                              (TANK1_FULL_OPEN_ERROR_MM - TANK1_HEIGHT_DEADBAND_MM),
+                              0.0,
+                              1.0);
+      desiredAngle = VALVE_CLOSED_ANGLE -
+                     (int)((VALVE_CLOSED_ANGLE - VALVE_FULL_OPEN_ANGLE) * ratio + 0.5);
+    }
+
+    desiredAngle = constrain(desiredAngle, VALVE_FULL_OPEN_ANGLE, VALVE_CLOSED_ANGLE);
+    applyServoAngle(1, desiredAngle, false);
+
+    unsigned long now = millis();
+    if (desiredAngle != lastTank1ControlAngle ||
+        now - lastHeightControlLogMs >= HEIGHT_CONTROL_LOG_INTERVAL_MS) {
+      Serial.print("[CTRL1] target_mm=");
+      Serial.print(tank1TargetHeightMm, 1);
+      Serial.print(",level_mm=");
+      Serial.print(waterLevel1Mm, 1);
+      Serial.print(",error_mm=");
+      Serial.print(errorMm, 1);
+      Serial.print(",valve_angle=");
+      Serial.println(desiredAngle);
+
+      lastTank1ControlAngle = desiredAngle;
+      lastHeightControlLogMs = now;
+    }
+  }
+
+  void printTank1HeightControlStatus() {
+    Serial.println();
+    Serial.println("========== TANK 1 HEIGHT CONTROL ==========");
+    Serial.print("Control: ");
+    Serial.println(tank1HeightControlEnabled ? "ON" : "OFF");
+    Serial.print("Target: ");
+    Serial.print(tank1TargetHeightMm, 1);
+    Serial.println(" mm");
+    Serial.print("Level: ");
+    Serial.print(waterLevel1Mm, 1);
+    Serial.print(" mm | Distance: ");
+    Serial.print(distance1Mm, 1);
+    Serial.println(" mm");
+    Serial.print("Valve angle: ");
+    Serial.print(tank1ValveAngle);
+    Serial.println(" degrees");
+    Serial.print("Deadband: +/-");
+    Serial.print(TANK1_HEIGHT_DEADBAND_MM, 1);
+    Serial.println(" mm");
+    Serial.println("170=open | 180=closed");
+    Serial.println("===========================================");
   }
 
   // ---------------------------------------------------------------------------
@@ -787,12 +951,16 @@
     Serial.print(",s2=");
     Serial.print(tank2ValveAngle);
     Serial.print(",volume_l=");
-    Serial.println(totalVolumeL, 3);
+    Serial.print(totalVolumeL, 3);
+    Serial.print(",ctrl1=");
+    Serial.print(tank1HeightControlEnabled ? "ON" : "OFF");
+    Serial.print(",target1_mm=");
+    Serial.println(tank1TargetHeightMm, 1);
   }
 
   void printStatus() {
     Serial.println();
-    Serial.println("========== SPRINT 09 MANUAL STATUS ==========");
+    Serial.println("========== SPRINT 10 TANK 1 STATUS ==========");
     Serial.print("Pump: ");
     Serial.print(pumpEnabled ? "ON" : "OFF");
     Serial.print(" | PWM=");
@@ -806,6 +974,11 @@
     Serial.print(SERVO_TANK1_PIN);
     Serial.print(" output=");
     Serial.println(tank1ServoOutputEnabled ? "ON" : "OFF");
+    Serial.print("Tank1 control: ");
+    Serial.print(tank1HeightControlEnabled ? "ON" : "OFF");
+    Serial.print(" | target=");
+    Serial.print(tank1TargetHeightMm, 1);
+    Serial.println(" mm");
 
     Serial.print("Servo2/Tank2: angle=");
     Serial.print(tank2ValveAngle);
@@ -879,7 +1052,7 @@
 
   void printHelp() {
     Serial.println();
-    Serial.println("Commands - Sprint 09 manual hardware control");
+    Serial.println("Commands - Sprint 10 Tank 1 height control");
     Serial.println("  PWM,<0-255>          Set pump PWM and apply output immediately");
     Serial.println("  SETPWM,<0-255>       Alias for PWM");
     Serial.println("  PUMP,ON              Enable pump using current PWM");
@@ -891,6 +1064,11 @@
     Serial.println("  V1,OPEN / V1,CLOSE   Open/close Tank 1 valve");
     Serial.println("  V2,OPEN / V2,CLOSE   Open/close Tank 2 valve");
     Serial.println("  VALVES,OPEN/CLOSE    Open/close both valves");
+    Serial.println("  SETHEIGHT1,<mm>      Set Tank 1 target height");
+    Serial.println("  SETLEVEL1,<mm>       Alias for SETHEIGHT1");
+    Serial.println("  TARGET1,<mm> / H1,<mm>  Short target aliases");
+    Serial.println("  LEVEL1,ON/OFF        Enable/disable Tank 1 height control");
+    Serial.println("  LEVEL1,STATUS        Print Tank 1 control status");
     Serial.println("  DIR,<s>,LEFT|CENTER|RIGHT  Valve positions: open/mid/closed");
     Serial.println("  STEP,<s>,LEFT|RIGHT  Move valve angle by 1 degree");
     Serial.println("  CR,<s>,CW|CCW,<0-100> Continuous-rotation servo pulse test");
@@ -916,10 +1094,11 @@
   // ---------------------------------------------------------------------------
 
   void emergencyStop() {
+    tank1HeightControlEnabled = false;
     pumpEnabled = false;
     applyPumpOutput();
     closeAllValves();
-    Serial.println("[OK] Emergency stop: pump OFF, valves CLOSED");
+    Serial.println("[OK] Emergency stop: pump OFF, valves CLOSED, Tank1 control OFF");
   }
 
   void checkSafety() {

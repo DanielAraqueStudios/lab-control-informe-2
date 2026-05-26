@@ -358,10 +358,15 @@ El proyecto se divide en módulos incrementales para facilitar desarrollo y prue
 - Comandos UART para detener, reanudar, asignar angulos y ver depuracion
 - Usa Servo 1 en GPIO18 y Servo 2 en GPIO19
 
-**Sprint 9: Sistema Completo con Valvulas Servo (`09_full_system_servo_valves.ino`)**
+**Sprint 9: Control Manual de Hardware (`09_full_system_servo_valves.ino`)**
 - Integra bomba, sensores ultrasonicos, sensor de flujo y dos valvulas servo
-- Controla la altura de cada tanque usando la lectura real ultrasonica
+- Permite probar manualmente bomba, lecturas y valvulas por UART
 - Valvulas calibradas como `170 = abierta` y `180 = cerrada`
+
+**Sprint 10: Control de Altura Tanque 1 (`10_tank1_height_control.ino`)**
+- Control automatico de altura del Tanque 1 con lectura HC-SR04 filtrada
+- Objetivo de altura configurable por UART (`SETHEIGHT1,<mm>`)
+- Mueve la valvula del Tanque 1 proporcionalmente al error de altura
 - Comandos UART: `SETLEVEL1,<mm>`, `SETLEVEL2,<mm>`, `LEVELCTRL,ON/OFF`, `VALVESTATUS`
 
 ---
@@ -606,9 +611,12 @@ lab-control-informe-2/
 │   ├── 08_servo_sync_sequence/
 │   │   ├── 08_servo_sync_sequence.ino # Sprint 8: Servo dual + UART debug
 │   │   └── README_SPRINT8.md          # Guía Sprint 8
-│   └── 09_full_system_servo_valves/
-│       ├── 09_full_system_servo_valves.ino # Sprint 9: Altura con valvulas servo
-│       └── README_SPRINT9.md               # Guía Sprint 9
+│   ├── 09_full_system_servo_valves/
+│   │   ├── 09_full_system_servo_valves.ino # Sprint 9: Control manual hardware
+│   │   └── README_SPRINT9.md               # Guía Sprint 9
+│   └── 10_tank1_height_control/
+│       ├── 10_tank1_height_control.ino     # Sprint 10: Control altura Tanque 1
+│       └── README_SPRINT10.md              # Guía Sprint 10
 │
 ├── python_app/                        # Interfaz de escritorio PyQt6
 │   ├── main.py                        # Punto de entrada de la UI
@@ -1352,7 +1360,8 @@ HELP                    → Mostrar comandos disponibles
 - Agregado Sprint 6 (`06_ultrasonic_sensors.ino`) como prueba aislada de medición ultrasónica.
 - Agregado Sprint 7 (`07_servo_control.ino`) para control dual de servomotores en GPIO18/GPIO19, alineado con Sprint 9.
 - Agregado Sprint 8 (`08_servo_sync_sequence.ino`) para barrido sincronizado 0-180 y depuracion UART usando GPIO18/GPIO19.
-- Agregado Sprint 9 (`09_full_system_servo_valves.ino`) para control de altura por sensores ultrasonicos y valvulas servo en GPIO18/GPIO19.
+- Agregado Sprint 9 (`09_full_system_servo_valves.ino`) para control manual de hardware con sensores ultrasonicos y valvulas servo en GPIO18/GPIO19.
+- Agregado Sprint 10 (`10_tank1_height_control.ino`) para control automatico de altura del Tanque 1 por UART usando HC-SR04 y valvula servo.
 - Agregada referencia a la interfaz Python/PyQt6 (`python_app`) y al flujo UART/CSV.
 - Comandos seriales actualizados para `05_complete_system.ino`.
 

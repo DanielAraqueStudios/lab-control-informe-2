@@ -8,7 +8,7 @@ from typing import List, Optional
 import time
 
 from core.protocol import ProtocolParser
-from core.models import TelemetryData, StatusMessage, MetricsData
+from core.models import TelemetryData, StatusMessage, MetricsData, LiveData
 
 
 class SerialWorker(QThread):
@@ -16,6 +16,7 @@ class SerialWorker(QThread):
     
     # Signals
     telemetry_received = pyqtSignal(TelemetryData)
+    live_data_received = pyqtSignal(LiveData)
     status_received = pyqtSignal(StatusMessage)
     metrics_received = pyqtSignal(MetricsData)
     connection_changed = pyqtSignal(bool)  # True=connected, False=disconnected
@@ -152,6 +153,8 @@ class SerialWorker(QThread):
         
         if isinstance(result, TelemetryData):
             self.telemetry_received.emit(result)
+        elif isinstance(result, LiveData):
+            self.live_data_received.emit(result)
         elif isinstance(result, StatusMessage):
             self.status_received.emit(result)
         elif isinstance(result, MetricsData):

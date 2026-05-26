@@ -13,7 +13,8 @@ from core.models import (
     MetricsData,
     PIDParameters,
     DeviceInfo,
-    ControlMode
+    ControlMode,
+    LiveData
 )
 
 
@@ -22,6 +23,7 @@ class AppState(QObject):
     
     # Signals for state changes
     telemetry_updated = pyqtSignal()
+    live_data_updated = pyqtSignal()
     metrics_updated = pyqtSignal()
     connection_changed = pyqtSignal(bool)
     mode_changed = pyqtSignal(ControlMode)
@@ -35,6 +37,9 @@ class AppState(QObject):
         # Current telemetry
         self.current_telemetry: Optional[TelemetryData] = None
         self.telemetry_history: Deque[TelemetryData] = deque(maxlen=self.MAX_HISTORY)
+        
+        # Live hardware data (Sprint 9)
+        self.current_live_data: Optional[LiveData] = None
         
         # Status logs
         self.status_logs: Deque[StatusMessage] = deque(maxlen=500)
@@ -71,6 +76,11 @@ class AppState(QObject):
             self.mode_changed.emit(data.mode)
         
         self.telemetry_updated.emit()
+        
+    def update_live_data(self, data: LiveData):
+        """Update raw hardware telemetry."""
+        self.current_live_data = data
+        self.live_data_updated.emit()
     
     def add_status(self, status: StatusMessage):
         """Add status message to logs."""
